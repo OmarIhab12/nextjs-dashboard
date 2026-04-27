@@ -1,8 +1,8 @@
 import Image from 'next/image';
 import { UpdateInvoice, DeleteInvoice } from '@/app/ui/invoices/buttons';
-import InvoiceStatus from '@/app/ui/invoices/status';
+import {InvoiceStatus, PaymentStatus} from '@/app/ui/invoices/status';
 import { formatDateToLocal, formatCurrency } from '@/app/lib/utils';
-import { fetchFilteredInvoices } from '@/app/lib/data';
+import { fetchFilteredInvoices } from '@/app/lib/db/invoices';
 
 export default async function InvoicesTable({
   query,
@@ -26,14 +26,14 @@ export default async function InvoicesTable({
                 <div className="flex items-center justify-between border-b pb-4">
                   <div>
                     <div className="mb-2 flex items-center">
-                      <Image
+                      {/* <Image
                         src={invoice.image_url}
                         className="mr-2 rounded-full"
                         width={28}
                         height={28}
                         alt={`${invoice.name}'s profile picture`}
-                      />
-                      <p>{invoice.name}</p>
+                      /> */}
+                      <p>{invoice.customer_id}</p>
                     </div>
                     <p className="text-sm text-gray-500">{invoice.email}</p>
                   </div>
@@ -42,9 +42,9 @@ export default async function InvoicesTable({
                 <div className="flex w-full items-center justify-between pt-4">
                   <div>
                     <p className="text-xl font-medium">
-                      {formatCurrency(invoice.amount)}
+                      {formatCurrency(parseInt(invoice.total))}
                     </p>
-                    <p>{formatDateToLocal(invoice.date)}</p>
+                    <p>{formatDateToLocal(invoice.created_at)}</p>
                   </div>
                   <div className="flex justify-end gap-2">
                     <UpdateInvoice id={invoice.id} />
@@ -64,13 +64,16 @@ export default async function InvoicesTable({
                   Email
                 </th>
                 <th scope="col" className="px-3 py-5 font-medium">
-                  Amount
+                  total
                 </th>
                 <th scope="col" className="px-3 py-5 font-medium">
                   Date
                 </th>
                 <th scope="col" className="px-3 py-5 font-medium">
                   Status
+                </th>
+                <th scope="col" className="px-3 py-5 font-medium">
+                  Payment Status
                 </th>
                 <th scope="col" className="relative py-3 pl-6 pr-3">
                   <span className="sr-only">Edit</span>
@@ -85,13 +88,13 @@ export default async function InvoicesTable({
                 >
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
                     <div className="flex items-center gap-3">
-                      <Image
+                      {/* <Image
                         src={invoice.image_url}
                         className="rounded-full"
                         width={28}
                         height={28}
                         alt={`${invoice.name}'s profile picture`}
-                      />
+                      /> */}
                       <p>{invoice.name}</p>
                     </div>
                   </td>
@@ -99,13 +102,16 @@ export default async function InvoicesTable({
                     {invoice.email}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
-                    {formatCurrency(invoice.amount)}
+                    {formatCurrency(parseInt(invoice.total))}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
-                    {formatDateToLocal(invoice.date)}
+                    {formatDateToLocal(invoice.created_at)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
                     <InvoiceStatus status={invoice.status} />
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-3">
+                    <PaymentStatus status={invoice.payment_status} />
                   </td>
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
                     <div className="flex justify-end gap-3">
