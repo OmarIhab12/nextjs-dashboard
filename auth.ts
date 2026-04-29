@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { User } from '@/app/lib/definitions';
 import bcrypt from 'bcrypt';
 import postgres from 'postgres';
+import { DefaultSession } from 'next-auth';
  
 const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
  
@@ -40,3 +41,11 @@ export const { auth, signIn, signOut } = NextAuth({
     }),
   ],
 });
+
+declare module 'next-auth' {
+  interface Session {
+    user: {
+      id: string;
+    } & DefaultSession['user'];
+  }
+}

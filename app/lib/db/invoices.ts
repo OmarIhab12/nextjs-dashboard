@@ -2,10 +2,12 @@
 import sql from "../db";
 import { formatCurrency } from '../utils';
 import { PaymentStatus } from "./installments";
- import { z } from 'zod';
- import postgres from 'postgres';
- import { revalidatePath } from 'next/cache';
- import { redirect } from 'next/navigation';
+import { z } from 'zod';
+import postgres from 'postgres';
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { auth } from '@/auth';
+import { getProductById, adjustStock } from '@/app/lib/db/products';
 
 export type InvoiceStatus = "draft" | "confirmed" | "cancelled" | "shipped" ;
 export type DiscountType  = "percentage" | "amount";
@@ -13,7 +15,7 @@ export type DiscountType  = "percentage" | "amount";
 export interface InvoiceItem {
   id: string;
   invoice_id: string;
-  product_id: string | null;
+  product_id: string;
   product_name: string;
   unit_price: string;
   quantity: number;
@@ -72,7 +74,7 @@ export interface InvoiceWithItems extends Invoice {
 }
 
 export interface CreateInvoiceItemInput {
-  product_id?: string;
+  product_id: string;
   product_name: string;
   unit_price: number;
   quantity: number;
@@ -82,20 +84,21 @@ export interface CreateInvoiceInput {
   customer_id: string;
   created_by: string;
   items: CreateInvoiceItemInput[];
-  discount_type?: DiscountType;
-  discount_value?: number;
-  due_date?: Date;
+  discount_type: DiscountType;
+  discount_value: number;
+  due_date: Date;
   notes?: string;
 }
 
 export interface UpdateInvoiceForm {
   id: string;
-  customer_id?: string;
-  status?: InvoiceStatus;
-  discount_type?: DiscountType | null;
-  discount_value?: number | null;
-  due_date?: Date | null;
+  customer_id: string;
+  status: InvoiceStatus;
+  discount_type: DiscountType;
+  discount_value: number;
+  due_date: Date;
   notes?: string | null;
+  items: CreateInvoiceItemInput[];
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -120,6 +123,37 @@ function computeTotals(
   const total = subtotal - discountAmount;
   return { subtotal, discountAmount, total };
 }
+
+export type State = {
+  errors: {
+    customer_id?:    string[];
+    discount_type?:  string[];
+    discount_value?: string[];
+    due_date?:       string[];
+    notes?:          string[];
+    items?:          string[];
+  };
+  message: string | null;
+};
+
+
+const FormSchema = z.object({
+  id: z.string(),
+  customer_id: z.string({
+    invalid_type_error: 'Please select a customer.',
+  }),
+  discount_value: z.coerce
+    .number()
+    .gt(0, { message: 'Please enter an amount greater than $0.' }),
+  status: z.enum(['draft', 'confirmed', 'shipped', 'cancelled'], {
+    invalid_type_error: 'Please select an invoice status.',
+  }),
+  discount_type: z.enum(['percentage', 'amount'], {
+    invalid_type_error: 'Please select valid discount type',
+  }),
+  due_date: z.string(),
+  notes: z.string(),
+});
 
 // ── Queries ──────────────────────────────────────────────────
 
@@ -240,65 +274,56 @@ export async function createInvoice(
         `.then((rows) => rows[0])
       )
     );
+    
+    input.items.map((item) =>
+      adjustStock(item.product_id, -item.quantity)
+    )
 
     return { ...invoice, items };
   });
 }
 
-const FormSchema = z.object({
-  id: z.string(),
-  customer_id: z.string({
-    invalid_type_error: 'Please select a customer.',
-  }),
-  discount_value: z.coerce
-    .number()
-    .gt(0, { message: 'Please enter an amount greater than $0.' }),
-  status: z.enum(['draft', 'confirmed', 'shipped', 'cancelled'], {
-    invalid_type_error: 'Please select an invoice status.',
-  }),
-  discount_type: z.enum(['percentage', 'amount'], {
-    invalid_type_error: 'Please select valid discount type',
-  }),
-  due_date: z.string(),
-  notes: z.string(),
-});
+
 const EditSubmitInvoive = FormSchema.omit({ id: true});
 
 export async function updateInvoice(
   id: string,
-  formData: FormData
-) {
-  const { customer_id, due_date, status, discount_type, discount_value, notes } = EditSubmitInvoive.parse({
-    customer_id: formData.get('customerId'),
-    status: formData.get('status'),
-    discount_type: formData.get('discount_type'),
-    discount_value: formData.get('discount_value'),
-    due_date: formData.get('due_date'),
-    notes: formData.get('notes'),
-  });
-  console.log("the invoice update call is send successfully from the UI");
-  console.log("The updated invoice id is " + id);
-  console.log(customer_id);
-  console.log(status);
-  console.log(discount_type);
-  console.log(discount_value);
-  console.log(due_date);
-  console.log(notes);
-  
-  const [invoice] = await sql<Invoice[]>`
+  input: UpdateInvoiceForm
+): Promise<Invoice | null> {
+
+  return await sql.begin(async (tx) => {
+  const [invoice] = await tx<Invoice[]>`
     UPDATE invoices
     SET
-      customer_id     = ${customer_id},
-      status          = ${status},
-      discount_type   = ${discount_type},
-      discount_value  = ${discount_value},
-      due_date        = ${due_date},
-      notes           = ${notes}
+      customer_id     = COALESCE(${input.customer_id   ?? null}, customer_id),
+      status          = COALESCE(${input.status        ?? null}::invoice_status, status),
+      discount_type   = COALESCE(${input.discount_type ?? null}::discount_type, discount_type),
+      discount_value  = COALESCE(${input.discount_value  !== undefined ? input.discount_value  : null}, discount_value),
+      due_date        = COALESCE(${input.due_date        !== undefined ? input.due_date        : null}, due_date),
+      notes           = COALESCE(${input.notes           !== undefined ? input.notes           : null}, notes)
     WHERE id = ${id}
     RETURNING *
   `;
-  revalidatePath('/dashboard/invoices');
-    redirect('/dashboard/invoices');
+
+  // Update line items
+    // const items = await Promise.all(
+    //   input.items.map((item) =>
+    //     tx<InvoiceItem[]>`
+    //       UPDATE  invoice_items
+    //         (quantity, line_total)
+    //       VALUES (
+    //         ${item.product_name},
+    //         ${item.unit_price},
+    //         ${item.quantity},
+    //         ${item.unit_price * item.quantity}
+    //       )
+    //       RETURNING *
+    //     `.then((rows) => rows[0])
+    //   )
+    // );
+
+  return invoice ?? null;
+  });
 }
 
 export async function updateInvoiceStatus(
@@ -401,4 +426,149 @@ export async function fetchFilteredInvoices(
   }
 }
 
+
+const CreateInvoice = FormSchema.omit({ id: true});
+
+export async function createInvoiceAction(prevState: State, formData: FormData): Promise<State>{
+  
+
+  let items: CreateInvoiceItemInput[] = [];
+  try {
+    items = JSON.parse(formData.get("items") as string ?? "[]");
+  } catch {
+    return {
+      errors: { items: ['Invalid product data. Please try again.'] },
+      message: 'Failed to Create Invoice.',
+    };
+  }
+ 
+  if (items.length === 0) {
+    return {
+      errors: { items: ['Please add at least one product.'] },
+      message: 'Missing Fields. Failed to Create Invoice.',
+    };
+  }
+
+  for (const item of items) {
+    if (!item.product_id) continue;
+    const product = await getProductById(item.product_id);
+    if (!product) {
+      return {
+        errors: { items: [`Product not found: ${item.product_name}`] },
+        message: 'Validation failed.',
+      };
+    }
+    if (item.quantity > product.stock_quantity) {
+      return {
+        errors: {
+          items: [
+            `"${product.name}" only has ${product.stock_quantity} units in stock but ${item.quantity} were requested.`,
+          ],
+        },
+        message: 'Validation failed.',
+      };
+    }
+  }
+
+  const validatedFields = CreateInvoice.safeParse({
+    customer_id: formData.get('customer_id'),
+    status: formData.get('status'),
+    discount_type: formData.get('discount_type'),
+    discount_value: formData.get('discount_value'),
+    due_date: formData.get('due_date'),
+    notes: formData.get('notes') ?? '',
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Missing Fields Validations. Failed to Create Invoice.',
+    };
+  }
+
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return { errors: {}, message: 'You must be signed in to create an invoice.' };
+  }
+
+  const userId = session.user.id;
+
+  await createInvoice({
+    customer_id:    formData.get("customer_id") as string,
+    created_by:     userId, // from session
+    due_date:       formData.get("due_date") ? new Date(formData.get("due_date") as string) : new Date(),
+    discount_type:  formData.get("discount_type") as any || undefined,
+    discount_value: formData.get("discount_value") ? parseFloat(formData.get("discount_value") as string) : 0,
+    notes:          formData.get("notes") as string || undefined,
+    items,
+  });
+
+  redirect("/dashboard/invoices");
+}
+
+export async function updateInvoiceAction(
+  id: string,
+  formData: FormData
+): Promise<State> {
+  let items: CreateInvoiceItemInput[] = [];
+  try {
+    items = JSON.parse(formData.get("items") as string ?? "[]");
+  } catch {
+    return {
+      errors: { items: ['Invalid product data. Please try again.'] },
+      message: 'Failed to Create Invoice.',
+    };
+  }
+ 
+  if (items.length === 0) {
+    return {
+      errors: { items: ['Please add at least one product.'] },
+      message: 'Missing Fields. Failed to Create Invoice.',
+    };
+  }
+
+  for (const item of items) {
+    if (!item.product_id) continue;
+    const product = await getProductById(item.product_id);
+    if (!product) {
+      return {
+        errors: { items: [`Product not found: ${item.product_name}`] },
+        message: 'Validation failed.',
+      };
+    }
+    if (item.quantity > product.stock_quantity) {
+      return {
+        errors: {
+          items: [
+            `"${product.name}" only has ${product.stock_quantity} units in stock but ${item.quantity} were requested.`,
+          ],
+        },
+        message: 'Validation failed.',
+      };
+    }
+  }
+
+  const { customer_id, due_date, status, discount_type, discount_value, notes } = EditSubmitInvoive.parse({
+    customer_id: formData.get('customerId'),
+    status: formData.get('status'),
+    discount_type: formData.get('discount_type'),
+    discount_value: formData.get('discount_value'),
+    due_date: formData.get('due_date'),
+    notes: formData.get('notes'),
+  });
+  await updateInvoice(id, {
+    id: id,
+    customer_id:    customer_id as string,
+    status:         status as InvoiceStatus,
+    due_date:       due_date ? new Date(formData.get("due_date") as string) : new Date(),
+    discount_type:  discount_type as any || undefined,
+    discount_value: discount_value ? parseFloat(formData.get("discount_value") as string) : 0,
+    notes:          notes as string || undefined,
+    items,
+  });
+  
+  revalidatePath('/dashboard/invoices');
+  redirect('/dashboard/invoices');
+}
 // OR invoices.status ILIKE ${`%${query}%`}

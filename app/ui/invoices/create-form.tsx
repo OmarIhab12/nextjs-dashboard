@@ -1,19 +1,24 @@
 'use client';
-import { CustomerField } from '@/app/lib/definitions';
 import Link from 'next/link';
 import {
-  CheckIcon,
-  ClockIcon,
   CurrencyDollarIcon,
   UserCircleIcon,
 } from '@heroicons/react/24/outline';
+import { TbDiscount } from "react-icons/tb";
 import { Button } from '@/app/ui/button';
-import { createInvoice, State } from '@/app/lib/actions';
-import { useActionState } from 'react';
+import { createInvoiceAction, State } from '@/app/lib/db/invoices';
+import { useActionState, useState } from 'react';
+import { InvoiceStatus } from '@/app/ui/invoices/status';
+import DatePicker from "react-datepicker";
+import { Customer } from '@/app/lib/db/customers';
+import { Product } from '@/app/lib/db/products';
+import LineItems from '@/app/ui/invoices/line-items';
 
-export default function Form({ customers }: { customers: CustomerField[] }) {
+export default function Form({ customers, products }: { customers: Customer[]; products: Product[];}) {
   const initialState: State = { message: null, errors: {} };
-  const [state, formAction] = useActionState(createInvoice, initialState);
+  const [state, formAction] = useActionState(createInvoiceAction, initialState);
+  const [startDate, setStartDate] = useState(new Date());
+  
 
   return (
     <form action={formAction}>
@@ -26,7 +31,7 @@ export default function Form({ customers }: { customers: CustomerField[] }) {
           <div className="relative">
             <select
               id="customer"
-              name="customerId"
+              name="customer_id"
               className="peer block w-full cursor-pointer rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
               defaultValue=""
               aria-describedby="customer-error"
@@ -43,43 +48,107 @@ export default function Form({ customers }: { customers: CustomerField[] }) {
             <UserCircleIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500" />
           </div>
           <div id="customer-error" aria-live="polite" aria-atomic="true">
-        {state.errors?.customerId &&
-          state.errors.customerId.map((error: string) => (
-            <p className="mt-2 text-sm text-red-500" key={error}>
-              {error}
-            </p>
-          ))}
-      </div>
+            {state.errors?.customer_id &&
+              state.errors.customer_id.map((error: string) => (
+                <p className="mt-2 text-sm text-red-500" key={error}>
+                  {error}
+                </p>
+              ))}
+          </div>
         </div>
 
-        {/* Invoice Amount */}
+        {/* Discount Type */}
         <div className="mb-4">
-          <label htmlFor="amount" className="mb-2 block text-sm font-medium">
-            Choose an amount
+          <label htmlFor="discount-type" className="mb-2 block text-sm font-medium">
+            Choose discount type
+          </label>
+          <div className="relative">
+            <select
+              id="discount_type"
+              name="discount_type"
+              className="peer block w-full cursor-pointer rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
+              defaultValue="percentage"
+            >
+              <option value="" disabled>
+                Select discount type
+              </option>
+              <option key="percentage" value="percentage">
+                percentage
+              </option>
+
+              <option key="amount" value="amount">
+                amount
+              </option>
+
+            </select>
+            <TbDiscount className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500" />
+          </div>
+          <div id="discount-type-error" aria-live="polite" aria-atomic="true">
+            {state.errors?.discount_type &&
+              state.errors.discount_type.map((error: string) => (
+                <p className="mt-2 text-sm text-red-500" key={error}>
+                  {error}
+                </p>
+              ))}
+          </div>
+        </div>
+        
+        {/* Discount Amount */}
+        <div className="mb-4">
+          <label htmlFor="total" className="mb-2 block text-sm font-medium">
+            Discount amount
           </label>
           <div className="relative mt-2 rounded-md">
             <div className="relative">
               <input
-                id="amount"
-                name="amount"
+                id="discount_value"
+                name="discount_value"
                 type="number"
                 step="0.01"
+                defaultValue="0"
                 placeholder="Enter USD amount"
                 className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
               />
               <CurrencyDollarIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500 peer-focus:text-gray-900" />
             </div>
-            <div id="amount-error" aria-live="polite" aria-atomic="true">
-        {state.errors?.amount &&
-          state.errors.amount.map((error: string) => (
-            <p className="mt-2 text-sm text-red-500" key={error}>
-              {error}
-            </p>
-          ))}
-      </div>
+          </div>
+          <div id="discount-value-error" aria-live="polite" aria-atomic="true">
+            {state.errors?.discount_value &&
+              state.errors.discount_value.map((error: string) => (
+                <p className="mt-2 text-sm text-red-500" key={error}>
+                  {error}
+                </p>
+              ))}
           </div>
         </div>
-
+                
+        {/* Due date */}
+        <div className="mb-4">
+          <label htmlFor="total" className="mb-2 block text-sm font-medium">
+            Due date
+          </label>
+          <div className="relative mt-2 rounded-md">
+            <div className="relative">
+              <DatePicker
+                id="due_date"
+                name="due_date"
+                selected={startDate}
+                onChange={(date: Date| null) => { if (date) setStartDate(date); }}
+                minDate={new Date()}
+              />
+            </div>
+          </div>
+          <div id="customer-error" aria-live="polite" aria-atomic="true">
+            {state.errors?.due_date &&
+              state.errors.due_date.map((error: string) => (
+                <p className="mt-2 text-sm text-red-500" key={error}>
+                  {error}
+                </p>
+              ))}
+          </div>
+        </div>
+        
+                
         {/* Invoice Status */}
         <fieldset>
           <legend className="mb-2 block text-sm font-medium">
@@ -89,45 +158,87 @@ export default function Form({ customers }: { customers: CustomerField[] }) {
             <div className="flex gap-4">
               <div className="flex items-center">
                 <input
-                  id="pending"
+                  id="draft"
                   name="status"
                   type="radio"
-                  value="pending"
+                  value="draft"
+                  defaultChecked
                   className="h-4 w-4 cursor-pointer border-gray-300 bg-gray-100 text-gray-600 focus:ring-2"
                 />
-                <label
-                  htmlFor="pending"
-                  className="ml-2 flex cursor-pointer items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600"
-                >
-                  Pending <ClockIcon className="h-4 w-4" />
-                </label>
+                <div className='ml-1'>
+                <InvoiceStatus status={"draft"} />
+                </div>
               </div>
               <div className="flex items-center">
                 <input
-                  id="paid"
+                  id="confirmed"
                   name="status"
                   type="radio"
-                  value="paid"
+                  value="confirmed"
                   className="h-4 w-4 cursor-pointer border-gray-300 bg-gray-100 text-gray-600 focus:ring-2"
                 />
-                <label
-                  htmlFor="paid"
-                  className="ml-2 flex cursor-pointer items-center gap-1.5 rounded-full bg-green-500 px-3 py-1.5 text-xs font-medium text-white"
-                >
-                  Paid <CheckIcon className="h-4 w-4" />
-                </label>
+                <div className='ml-1'>
+                <InvoiceStatus status={"confirmed"} />
+                </div>
+              </div>
+              <div className="flex items-center">
+                <input
+                  id="shipped"
+                  name="status"
+                  type="radio"
+                  value="shipped"
+                  className="h-4 w-4 cursor-pointer border-gray-300 bg-gray-100 text-gray-600 focus:ring-2"
+                />
+                <div className='ml-1'>
+                <InvoiceStatus status={"shipped"} />
+                </div>
+              </div>
+              <div className="flex items-center">
+                <input
+                  id="cancelled"
+                  name="status"
+                  type="radio"
+                  value="cancelled"
+                  className="h-4 w-4 cursor-pointer border-gray-300 bg-gray-100 text-gray-600 focus:ring-2"
+                />
+                <div className='ml-1'>
+                <InvoiceStatus status={"cancelled"} />
+                </div>
               </div>
             </div>
-            <div id="status-error" aria-live="polite" aria-atomic="true">
-        {state.errors?.status &&
-          state.errors.status.map((error: string) => (
-            <p className="mt-2 text-sm text-red-500" key={error}>
-              {error}
-            </p>
-          ))}
-      </div>
           </div>
         </fieldset>
+
+        {/* Notes */}
+        <div className="mb-4">
+          <label htmlFor="total" className="mb-2 block text-sm font-medium">
+            Notes
+          </label>
+          <div className="relative mt-2 rounded-md">
+            <div className="relative">
+              <input
+                id="notes"
+                name="notes"
+                defaultValue=""
+                placeholder="Enter extra notes"
+                className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Line Items ── */}
+        <LineItems
+          products={products}
+          errors={state.errors?.items}
+        />
+
+        {/* Global error */}
+        <div className="mb-4">
+          {state.message && (
+            <p className="mt-2 text-sm text-red-500">{state.message}</p>
+          )}
+        </div>
       </div>
       <div className="mt-6 flex justify-end gap-4">
         <Link

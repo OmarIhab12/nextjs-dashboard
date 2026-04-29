@@ -35,12 +35,6 @@ const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
 
 export async function createInvoice(prevState: State, formData: FormData) {
 
-//   const { customerId, amount, status } = SubmitInvoice.parse({
-//     customerId: formData.get('customerId'),
-//     amount: formData.get('amount'),
-//     status: formData.get('status'),
-//   });
-
   const validatedFields = SubmitInvoice.safeParse({
     customerId: formData.get('customerId'),
     amount: formData.get('amount'),
