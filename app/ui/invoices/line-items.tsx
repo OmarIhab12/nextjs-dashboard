@@ -137,9 +137,8 @@ export default function LineItems({
       {/* Rows */}
       <div className="space-y-2">
         {items.map((item) => {
-          const selectedProduct = products.find((p) => p.id === item.product_id);
+          const selectedProduct = products?.find(p => p.id === item.product_id);
           const maxQty = selectedProduct?.stock_quantity ?? 9999;
-
           return (
             <div
               key={item._key}
@@ -153,7 +152,11 @@ export default function LineItems({
               >
                 <option value="">Select product…</option>
                 {products.map((p) => (
-                  <option key={p.id} value={p.id}>
+                  <option
+                    key={p.id}
+                    value={p.id}
+                    disabled={items.some((i) => i._key !== item._key && i.product_id === p.id)}
+                  >
                     {p.name}{p.sku ? ` (${p.sku})` : ''}
                   </option>
                 ))}

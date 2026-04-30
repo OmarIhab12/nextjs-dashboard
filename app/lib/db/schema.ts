@@ -111,8 +111,8 @@ async function schema() {
       product_name VARCHAR(255)   NOT NULL,
       unit_price   NUMERIC(12, 2) NOT NULL CHECK (unit_price >= 0),
       quantity     INT            NOT NULL CHECK (quantity > 0),
-      line_total   NUMERIC(12, 2) NOT NULL CHECK (line_total >= 0)
-    )
+      line_total   NUMERIC(12, 2) NOT NULL CHECK (line_total >= 0),
+      UNIQUE (invoice_id, product_id)
   `;
 
   // ── Installments ────────────────────────────────────────────

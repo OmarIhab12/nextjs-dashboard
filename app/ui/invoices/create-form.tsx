@@ -150,6 +150,7 @@ export default function Form({ customers, products }: { customers: Customer[]; p
         
                 
         {/* Invoice Status */}
+        <div className="mb-4">
         <fieldset>
           <legend className="mb-2 block text-sm font-medium">
             Set the invoice status
@@ -208,6 +209,7 @@ export default function Form({ customers, products }: { customers: Customer[]; p
             </div>
           </div>
         </fieldset>
+        </div>
 
         {/* Notes */}
         <div className="mb-4">

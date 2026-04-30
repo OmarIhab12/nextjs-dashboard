@@ -27,12 +27,12 @@ export interface Invoice {
   customer_id: string;
   created_by: string;
   status: InvoiceStatus;
-  discount_type: DiscountType | null;
-  discount_value: string | null;
+  discount_type: DiscountType;
+  discount_value: number;
   subtotal: string;
   discount_amount: string;
   total: string;
-  due_date: Date | null;
+  due_date: Date;
   notes: string | null;
   created_at: Date;
   updated_at: Date;
@@ -144,7 +144,7 @@ const FormSchema = z.object({
   }),
   discount_value: z.coerce
     .number()
-    .gt(0, { message: 'Please enter an amount greater than $0.' }),
+    .gte(0, { message: 'Please enter an amount greater than $0.' }),
   status: z.enum(['draft', 'confirmed', 'shipped', 'cancelled'], {
     invalid_type_error: 'Please select an invoice status.',
   }),
@@ -271,7 +271,13 @@ export async function createInvoice(
             ${item.unit_price * item.quantity}
           )
           RETURNING *
-        `.then((rows) => rows[0])
+        `.then(async (rows) => {
+            // Only runs if INSERT succeeded
+            if (item.product_id) {
+              await adjustStock(item.product_id, -item.quantity);
+            }
+            return rows[0];
+          })
       )
     );
     
@@ -305,25 +311,104 @@ export async function updateInvoice(
     RETURNING *
   `;
 
-  // Update line items
-    // const items = await Promise.all(
-    //   input.items.map((item) =>
-    //     tx<InvoiceItem[]>`
-    //       UPDATE  invoice_items
-    //         (quantity, line_total)
-    //       VALUES (
-    //         ${item.product_name},
-    //         ${item.unit_price},
-    //         ${item.quantity},
-    //         ${item.unit_price * item.quantity}
-    //       )
-    //       RETURNING *
-    //     `.then((rows) => rows[0])
-    //   )
-    // );
+  if (!invoice) return null;
 
-  return invoice ?? null;
+  // Handle item changes
+  await updateInvoiceItems(id, input.items, tx);
+
+  return invoice;
+  
   });
+}
+
+export async function updateInvoiceItems(
+  invoiceId: string,
+  newItems: CreateInvoiceItemInput[],
+  tx: postgres.TransactionSql
+): Promise<InvoiceItem[]> {
+
+  // Fetch current items from DB
+  const existingItems = await tx<InvoiceItem[]>`
+    SELECT * FROM invoice_items WHERE invoice_id = ${invoiceId}
+  `;
+
+  const existingMap = new Map(existingItems.map((i) => [i.product_id, i]));
+  const newMap      = new Map(newItems.map((i) => [i.product_id, i]));
+
+  // ── Deleted items ─────────────────────────────────────────
+  // Items in DB but not in the new list
+  const deleted = existingItems.filter((i) => i.product_id && !newMap.has(i.product_id));
+
+  await Promise.all(
+    deleted.map(async (item) => {
+      await tx`
+        DELETE FROM invoice_items
+        WHERE invoice_id = ${invoiceId}
+          AND product_id = ${item.product_id}
+      `;
+      // Restore stock
+      if (item.product_id) {
+        await adjustStock(item.product_id, item.quantity);
+      }
+    })
+  );
+
+  // ── Edited items ──────────────────────────────────────────
+  // Items that exist in both old and new list
+  const edited = newItems.filter((i) => i.product_id && existingMap.has(i.product_id));
+
+  await Promise.all(
+    edited.map(async (item) => {
+      const existing = existingMap.get(item.product_id)!;
+      const qtyDiff  = item.quantity - existing.quantity; // positive = more, negative = less
+
+      await tx`
+        UPDATE invoice_items
+        SET
+          product_name = ${item.product_name},
+          unit_price   = ${item.unit_price},
+          quantity     = ${item.quantity},
+          line_total   = ${item.unit_price * item.quantity}
+        WHERE invoice_id = ${invoiceId}
+          AND product_id = ${item.product_id}
+      `;
+
+      // Adjust stock by the difference only
+      if (item.product_id && qtyDiff !== 0) {
+        await adjustStock(item.product_id, -qtyDiff);
+      }
+    })
+  );
+
+  // ── Added items ───────────────────────────────────────────
+  // Items in new list but not in DB
+  const added = newItems.filter((i) => i.product_id && !existingMap.has(i.product_id));
+
+  await Promise.all(
+    added.map(async (item) => {
+      await tx<InvoiceItem[]>`
+        INSERT INTO invoice_items
+          (invoice_id, product_id, product_name, unit_price, quantity, line_total)
+        VALUES (
+          ${invoiceId},
+          ${item.product_id ?? null},
+          ${item.product_name},
+          ${item.unit_price},
+          ${item.quantity},
+          ${item.unit_price * item.quantity}
+        )
+      `;
+      // Deduct stock
+      if (item.product_id) {
+        await adjustStock(item.product_id, -item.quantity);
+      }
+    })
+  );
+
+  // Return the updated items
+  return tx<InvoiceItem[]>`
+    SELECT * FROM invoice_items WHERE invoice_id = ${invoiceId}
+  `;
 }
 
 export async function updateInvoiceStatus(
@@ -508,9 +593,11 @@ export async function createInvoiceAction(prevState: State, formData: FormData):
 }
 
 export async function updateInvoiceAction(
+  prevState: State,
   id: string,
   formData: FormData
-): Promise<State> {
+): Promise<State>{
+  
   let items: CreateInvoiceItemInput[] = [];
   try {
     items = JSON.parse(formData.get("items") as string ?? "[]");
@@ -550,7 +637,7 @@ export async function updateInvoiceAction(
   }
 
   const { customer_id, due_date, status, discount_type, discount_value, notes } = EditSubmitInvoive.parse({
-    customer_id: formData.get('customerId'),
+    customer_id: formData.get('customer_id'),
     status: formData.get('status'),
     discount_type: formData.get('discount_type'),
     discount_value: formData.get('discount_value'),

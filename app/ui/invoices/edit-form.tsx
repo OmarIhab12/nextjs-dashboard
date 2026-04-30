@@ -5,27 +5,37 @@ import {
   CurrencyDollarIcon,
   UserCircleIcon,
 } from '@heroicons/react/24/outline';
+import { TbDiscount } from "react-icons/tb";
 import Link from 'next/link';
 import { Button } from '@/app/ui/button';
-// import { updateInvoice } from '@/app/lib/actions';
-import { InvoiceStatus } from './status';
-import {UpdateInvoiceForm, updateInvoice, DiscountType} from '@/app/lib/db/invoices'
+import { InvoiceStatus } from '@/app/ui/invoices/status';
+import {updateInvoiceAction, State, InvoiceWithItems} from '@/app/lib/db/invoices'
 import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
-import React, { useState } from "react";
+import { useState, useActionState } from "react";
+import LineItems from '@/app/ui/invoices/line-items';
+import { Product } from '@/app/lib/db/products';
 
 export default function EditInvoiceForm({
   invoice,
   customers,
+  products,
 }: {
-  invoice: UpdateInvoiceForm;
+  invoice: InvoiceWithItems;
   customers: CustomerField[];
+  products: Product[]
 }) {
-  const updateInvoiceWithId = updateInvoice.bind(null, invoice.id);
+  const initialState: State = { message: null, errors: {} };
+  const updateInvoiceWithId = (state: State, formData: unknown) =>
+    updateInvoiceAction(state, invoice.id, formData as FormData);
+
+  const [state, formAction] = useActionState(updateInvoiceWithId, initialState);
+  
   const [startDate, setStartDate] = useState(invoice.due_date);
 
+  console.log(invoice.items);
+
   return (
-    <form action={updateInvoiceWithId}>
+    <form action={formAction}>
       <div className="rounded-md bg-gray-50 p-4 md:p-6">
         
         {/* Customer Name */}
@@ -36,7 +46,7 @@ export default function EditInvoiceForm({
           <div className="relative">
             <select
               id="customer"
-              name="customerId"
+              name="customer_id"
               className="peer block w-full cursor-pointer rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
               defaultValue={invoice.customer_id}
             >
@@ -50,6 +60,14 @@ export default function EditInvoiceForm({
               ))}
             </select>
             <UserCircleIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500" />
+          </div>
+          <div id="customer-error" aria-live="polite" aria-atomic="true">
+            {state.errors?.customer_id &&
+              state.errors.customer_id.map((error: string) => (
+                <p className="mt-2 text-sm text-red-500" key={error}>
+                  {error}
+                </p>
+              ))}
           </div>
         </div>
 
@@ -98,7 +116,15 @@ export default function EditInvoiceForm({
               </option>
 
             </select>
-            {/* <UserCircleIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500" /> */}
+            <TbDiscount className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500" />
+          </div>
+          <div id="discount-type-error" aria-live="polite" aria-atomic="true">
+            {state.errors?.discount_type &&
+              state.errors.discount_type.map((error: string) => (
+                <p className="mt-2 text-sm text-red-500" key={error}>
+                  {error}
+                </p>
+              ))}
           </div>
         </div>
 
@@ -121,6 +147,14 @@ export default function EditInvoiceForm({
               <CurrencyDollarIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500 peer-focus:text-gray-900" />
             </div>
           </div>
+          <div id="discount-value-error" aria-live="polite" aria-atomic="true">
+            {state.errors?.discount_value &&
+              state.errors.discount_value.map((error: string) => (
+                <p className="mt-2 text-sm text-red-500" key={error}>
+                  {error}
+                </p>
+              ))}
+          </div>
         </div>
         
         {/* Due date */}
@@ -130,18 +164,28 @@ export default function EditInvoiceForm({
           </label>
           <div className="relative mt-2 rounded-md">
             <div className="relative">
-              <DatePicker  id="due_date"
+              <DatePicker
+                id="due_date"
                 name="due_date"
-                selected={startDate} 
-                // onChange={(date) => setStartDate(date)}
-                onSelect={setStartDate}
+                selected={startDate}
+                onChange={(date: Date| null) => { if (date) setStartDate(date); }}
+                minDate={new Date()}
               />
             </div>
+          </div>
+          <div id="customer-error" aria-live="polite" aria-atomic="true">
+            {state.errors?.due_date &&
+              state.errors.due_date.map((error: string) => (
+                <p className="mt-2 text-sm text-red-500" key={error}>
+                  {error}
+                </p>
+              ))}
           </div>
         </div>
 
         
         {/* Invoice Status */}
+        <div className="mb-4">
         <fieldset>
           <legend className="mb-2 block text-sm font-medium">
             Set the invoice status
@@ -203,6 +247,7 @@ export default function EditInvoiceForm({
             </div>
           </div>
         </fieldset>
+        </div>
 
         {/* Notes */}
         <div className="mb-4">
@@ -214,12 +259,26 @@ export default function EditInvoiceForm({
               <input
                 id="notes"
                 name="notes"
-                defaultValue={invoice.notes}
+                defaultValue={invoice.notes?? undefined}
                 placeholder="Enter extra notes"
                 className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
               />
             </div>
           </div>
+          </div>
+
+        {/* ── Line Items ── */}
+        <LineItems
+          products={products}
+          initialItems={invoice.items}
+          errors={state.errors?.items}
+        />
+
+        {/* Global error */}
+        <div className="mb-4">
+          {state.message && (
+            <p className="mt-2 text-sm text-red-500">{state.message}</p>
+          )}
         </div>
       </div>
       <div className="mt-6 flex justify-end gap-4">
