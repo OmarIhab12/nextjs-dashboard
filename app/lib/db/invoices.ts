@@ -424,13 +424,14 @@ export async function updateInvoiceStatus(
   return invoice ?? null;
 }
 
-export async function deleteInvoice(id: string): Promise<boolean> {
+export async function deleteInvoice(id: string){
   // invoice_items and installments cascade; payments are restricted
   const result = await sql`
     DELETE FROM invoices
     WHERE id = ${id}
   `;
-  return result.count > 0;
+  
+  revalidatePath('/dashboard/invoices')
 }
 const ITEMS_PER_PAGE = 6;
 
