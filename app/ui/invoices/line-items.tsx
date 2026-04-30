@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { fmt } from '@/app/lib/utils';
 
 // ── Types ─────────────────────────────────────────────────────
 export type ProductField = {
@@ -38,22 +39,19 @@ function emptyItem(): LineItem {
   return { _key: uid(), product_id: '', product_name: '', unit_price: 0, quantity: 1 };
 }
 
-function fmt(n: number) {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
-}
+
 
 // ── Component ─────────────────────────────────────────────────
 export default function LineItems({
   products,
   errors,
   initialItems,
+  onSubtotalChange,
 }: {
   products: ProductField[];
   errors?: string[];
   initialItems?: ExistingLineItem[];
+  onSubtotalChange?: (subtotal: number) => void;
 }) {
   const [items, setItems] = useState<LineItem[]>(() => {
     if (initialItems && initialItems.length > 0) {
@@ -95,6 +93,11 @@ export default function LineItems({
   };
 
   const subtotal = items.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+
+  useEffect(() => {
+    onSubtotalChange?.(subtotal);
+  }, [subtotal, onSubtotalChange]);
+
 
   return (
     <div className="mb-4">
@@ -239,14 +242,15 @@ export default function LineItems({
       ))}
 
       {/* Subtotal */}
-      {subtotal > 0 && (
+      {/* {subtotal > 0 && (
         <div className="mt-3 flex justify-end gap-6 border-t border-gray-100 pt-3 text-sm">
           <span className="text-gray-500">Subtotal</span>
           <span className="font-semibold text-gray-800 tabular-nums">
             ${fmt(subtotal)}
           </span>
         </div>
-      )}
+      )} */}
+      
     </div>
   );
 }

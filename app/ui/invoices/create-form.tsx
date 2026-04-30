@@ -13,12 +13,28 @@ import DatePicker from "react-datepicker";
 import { Customer } from '@/app/lib/db/customers';
 import { Product } from '@/app/lib/db/products';
 import LineItems from '@/app/ui/invoices/line-items';
+import { fmt } from '@/app/lib/utils';
 
 export default function Form({ customers, products }: { customers: Customer[]; products: Product[];}) {
   const initialState: State = { message: null, errors: {} };
   const [state, formAction] = useActionState(createInvoiceAction, initialState);
   const [startDate, setStartDate] = useState(new Date());
   
+  const [subtotal,      setSubtotal]      = useState(0);
+  const [discountType,  setDiscountType]  = useState<'percentage' | 'amount' | ''>(
+    'percentage'
+  );
+  const [discountValue, setDiscountValue] = useState<number>(
+    0
+  );
+
+  // Derived
+  const discountAmount = (() => {
+    if (discountType === 'percentage') return (subtotal * discountValue) / 100;
+    if (discountType === 'amount')     return Math.min(discountValue, subtotal);
+    return 0;
+  })();
+  const total = subtotal - discountAmount;
 
   return (
     <form action={formAction}>
@@ -68,6 +84,7 @@ export default function Form({ customers, products }: { customers: Customer[]; p
               name="discount_type"
               className="peer block w-full cursor-pointer rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
               defaultValue="percentage"
+              onChange={(e) => setDiscountType(e.target.value as typeof discountType)}
             >
               <option value="" disabled>
                 Select discount type
@@ -106,6 +123,7 @@ export default function Form({ customers, products }: { customers: Customer[]; p
                 type="number"
                 step="0.01"
                 defaultValue="0"
+                onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
                 placeholder="Enter USD amount"
                 className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
               />
@@ -233,7 +251,32 @@ export default function Form({ customers, products }: { customers: Customer[]; p
         <LineItems
           products={products}
           errors={state.errors?.items}
+          onSubtotalChange={setSubtotal}
         />
+
+        {/* Subtotal */}
+        {/* ── Totals ── */}
+        <div className="mt-4 rounded-md border border-gray-200 bg-white p-4 space-y-2">
+          <div className="flex justify-between text-sm text-gray-600">
+            <span>Subtotal</span>
+            <span className="tabular-nums">${fmt(subtotal)}</span>
+          </div>
+
+          {discountAmount > 0 && (
+            <div className="flex justify-between text-sm text-green-600">
+              <span>
+                Discount
+                {discountType === 'percentage' ? ` (${discountValue}%)` : ''}
+              </span>
+              <span className="tabular-nums">−${fmt(discountAmount)}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between border-t border-gray-100 pt-2 text-base font-semibold text-gray-900">
+            <span>Total</span>
+            <span className="tabular-nums">${fmt(total)}</span>
+          </div>
+        </div>
 
         {/* Global error */}
         <div className="mb-4">

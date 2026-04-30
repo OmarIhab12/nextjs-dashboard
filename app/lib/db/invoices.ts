@@ -287,6 +287,12 @@ export async function updateInvoice(
   input: UpdateInvoiceForm
 ): Promise<Invoice | null> {
 
+  const { subtotal, discountAmount, total } = computeTotals(
+    input.items,
+    input.discount_type,
+    input.discount_value
+  );
+  
   return await sql.begin(async (tx) => {
   const [invoice] = await tx<Invoice[]>`
     UPDATE invoices
@@ -296,7 +302,10 @@ export async function updateInvoice(
       discount_type   = COALESCE(${input.discount_type ?? null}::discount_type, discount_type),
       discount_value  = COALESCE(${input.discount_value  !== undefined ? input.discount_value  : null}, discount_value),
       due_date        = COALESCE(${input.due_date        !== undefined ? input.due_date        : null}, due_date),
-      notes           = COALESCE(${input.notes           !== undefined ? input.notes           : null}, notes)
+      notes           = COALESCE(${input.notes           !== undefined ? input.notes           : null}, notes),
+      discount_amount = COALESCE(${discountAmount !== undefined ? discountAmount : null}, discount_amount),
+      subtotal       = COALESCE(${subtotal  !== undefined ? subtotal  : null}, subtotal),
+      total        = COALESCE(${total  !== undefined ? total  : null}, total)
     WHERE id = ${id}
     RETURNING *
   `;

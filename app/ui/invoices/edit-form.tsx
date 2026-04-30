@@ -14,6 +14,7 @@ import DatePicker from "react-datepicker";
 import { useState, useActionState } from "react";
 import LineItems from '@/app/ui/invoices/line-items';
 import { Product } from '@/app/lib/db/products';
+import { fmt } from '@/app/lib/utils';
 
 export default function EditInvoiceForm({
   invoice,
@@ -32,7 +33,21 @@ export default function EditInvoiceForm({
   
   const [startDate, setStartDate] = useState(invoice.due_date);
 
-  console.log(invoice.items);
+  const [subtotal,      setSubtotal]      = useState(0);
+  const [discountType,  setDiscountType]  = useState<'percentage' | 'amount' | ''>(
+    invoice?.discount_type ?? ''
+  );
+  const [discountValue, setDiscountValue] = useState<number>(
+    invoice?.discount_value ?? 0
+  );
+
+  // Derived
+  const discountAmount = (() => {
+    if (discountType === 'percentage') return (subtotal * discountValue) / 100;
+    if (discountType === 'amount')     return Math.min(discountValue, subtotal);
+    return 0;
+  })();
+  const total = subtotal - discountAmount;
 
   return (
     <form action={formAction}>
@@ -103,6 +118,7 @@ export default function EditInvoiceForm({
               name="discount_type"
               className="peer block w-full cursor-pointer rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
               defaultValue={invoice.discount_type}
+              onChange={(e) => setDiscountType(e.target.value as typeof discountType)}
             >
               <option value="" disabled>
                 Select discount type
@@ -141,6 +157,7 @@ export default function EditInvoiceForm({
                 type="number"
                 step="0.01"
                 defaultValue={invoice.discount_value}
+                onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
                 placeholder="Enter USD amount"
                 className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
               />
@@ -272,7 +289,31 @@ export default function EditInvoiceForm({
           products={products}
           initialItems={invoice.items}
           errors={state.errors?.items}
+          onSubtotalChange={setSubtotal}
         />
+
+        {/* ── Totals ── */}
+        <div className="mt-4 rounded-md border border-gray-200 bg-white p-4 space-y-2">
+          <div className="flex justify-between text-sm text-gray-600">
+            <span>Subtotal</span>
+            <span className="tabular-nums">${fmt(subtotal)}</span>
+          </div>
+
+          {discountAmount > 0 && (
+            <div className="flex justify-between text-sm text-green-600">
+              <span>
+                Discount
+                {discountType === 'percentage' ? ` (${discountValue}%)` : ''}
+              </span>
+              <span className="tabular-nums">−${fmt(discountAmount)}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between border-t border-gray-100 pt-2 text-base font-semibold text-gray-900">
+            <span>Total</span>
+            <span className="tabular-nums">${fmt(total)}</span>
+          </div>
+        </div>
 
         {/* Global error */}
         <div className="mb-4">
