@@ -138,7 +138,12 @@ export default function LineItems({
       <div className="space-y-2">
         {items.map((item) => {
           const selectedProduct = products?.find(p => p.id === item.product_id);
-          const maxQty = selectedProduct?.stock_quantity ?? 9999;
+          let maxQty = selectedProduct?.stock_quantity ?? 9999;
+          initialItems?.map((existingItem) => {
+            if (existingItem.product_id === item.product_id) {
+              maxQty += existingItem.quantity;
+            }
+          })
           return (
             <div
               key={item._key}

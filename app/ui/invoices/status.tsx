@@ -72,13 +72,13 @@ export function PaymentStatus({ status }: { status: string }) {
       ) : null}
       {status === 'partial' ? (
         <>
-          Paid
+          Partial
           <MdDownloading className="ml-1 w-4 text-white" />
         </>
       ) : null}
       {status === 'overdue' ? (
         <>
-          Paid
+          Overdue
           <CalendarDaysIcon className="ml-1 w-4 text-white" />
         </>
       ) : null}
