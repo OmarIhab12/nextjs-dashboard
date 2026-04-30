@@ -7,7 +7,7 @@ import postgres from 'postgres';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { getProductById, adjustStock } from '@/app/lib/db/products';
+import { getProductById} from '@/app/lib/db/products';
 
 export type InvoiceStatus = "draft" | "confirmed" | "cancelled" | "shipped" ;
 export type DiscountType  = "percentage" | "amount";
@@ -271,19 +271,9 @@ export async function createInvoice(
             ${item.unit_price * item.quantity}
           )
           RETURNING *
-        `.then(async (rows) => {
-            // Only runs if INSERT succeeded
-            if (item.product_id) {
-              await adjustStock(item.product_id, -item.quantity);
-            }
-            return rows[0];
-          })
+        `.then((rows) => rows[0])
       )
     );
-    
-    input.items.map((item) =>
-      adjustStock(item.product_id, -item.quantity)
-    )
 
     return { ...invoice, items };
   });
@@ -346,10 +336,6 @@ export async function updateInvoiceItems(
         WHERE invoice_id = ${invoiceId}
           AND product_id = ${item.product_id}
       `;
-      // Restore stock
-      if (item.product_id) {
-        await adjustStock(item.product_id, item.quantity);
-      }
     })
   );
 
@@ -372,11 +358,6 @@ export async function updateInvoiceItems(
         WHERE invoice_id = ${invoiceId}
           AND product_id = ${item.product_id}
       `;
-
-      // Adjust stock by the difference only
-      if (item.product_id && qtyDiff !== 0) {
-        await adjustStock(item.product_id, -qtyDiff);
-      }
     })
   );
 
@@ -398,10 +379,6 @@ export async function updateInvoiceItems(
           ${item.unit_price * item.quantity}
         )
       `;
-      // Deduct stock
-      if (item.product_id) {
-        await adjustStock(item.product_id, -item.quantity);
-      }
     })
   );
 

@@ -112,7 +112,9 @@ async function schema() {
       unit_price   NUMERIC(12, 2) NOT NULL CHECK (unit_price >= 0),
       quantity     INT            NOT NULL CHECK (quantity > 0),
       line_total   NUMERIC(12, 2) NOT NULL CHECK (line_total >= 0),
+
       UNIQUE (invoice_id, product_id)
+    )
   `;
 
   // ── Installments ────────────────────────────────────────────
@@ -228,6 +230,66 @@ async function schema() {
       FROM installments
       WHERE invoice_id = p_invoice_id;
     $$
+  `;
+
+  // Deduct stock when an item is inserted
+  await sql`
+    CREATE OR REPLACE FUNCTION update_stock_on_item_insert()
+    RETURNS TRIGGER LANGUAGE plpgsql AS $$
+    BEGIN
+      IF NEW.product_id IS NOT NULL THEN
+        UPDATE products
+        SET stock_quantity = stock_quantity - NEW.quantity
+        WHERE id = NEW.product_id;
+      END IF;
+      RETURN NEW;
+    END;
+    $$
+  `;
+  await sql`
+    CREATE OR REPLACE TRIGGER trg_stock_on_item_insert
+      AFTER INSERT ON invoice_items
+      FOR EACH ROW EXECUTE FUNCTION update_stock_on_item_insert()
+  `;
+
+  // Adjust stock when quantity changes on update
+  await sql`
+    CREATE OR REPLACE FUNCTION update_stock_on_item_update()
+    RETURNS TRIGGER LANGUAGE plpgsql AS $$
+    BEGIN
+      IF NEW.product_id IS NOT NULL AND NEW.quantity <> OLD.quantity THEN
+        UPDATE products
+        SET stock_quantity = stock_quantity - (NEW.quantity - OLD.quantity)
+        WHERE id = NEW.product_id;
+      END IF;
+      RETURN NEW;
+    END;
+    $$
+  `;
+  await sql`
+    CREATE OR REPLACE TRIGGER trg_stock_on_item_update
+      AFTER UPDATE ON invoice_items
+      FOR EACH ROW EXECUTE FUNCTION update_stock_on_item_update()
+  `;
+
+  // Restore stock when an item is deleted
+  await sql`
+    CREATE OR REPLACE FUNCTION update_stock_on_item_delete()
+    RETURNS TRIGGER LANGUAGE plpgsql AS $$
+    BEGIN
+      IF OLD.product_id IS NOT NULL THEN
+        UPDATE products
+        SET stock_quantity = stock_quantity + OLD.quantity
+        WHERE id = OLD.product_id;
+      END IF;
+      RETURN OLD;
+    END;
+    $$
+  `;
+  await sql`
+    CREATE OR REPLACE TRIGGER trg_stock_on_item_delete
+      AFTER DELETE ON invoice_items
+      FOR EACH ROW EXECUTE FUNCTION update_stock_on_item_delete()
   `;
 
   console.log("✅  Schema created.");

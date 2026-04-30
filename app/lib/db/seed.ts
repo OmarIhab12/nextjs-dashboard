@@ -38,139 +38,139 @@ async function seed() {
   const ssd      = await createProduct({ name: "Portable SSD 1TB",      description: "USB 3.2 Gen2, 1050MB/s read",      sku: "SSD-001", price: 109.99,  stock_quantity: 75  });
 
   // ── Invoices ──────────────────────────────────────────────
-  console.log("  → invoices & invoice_items");
+  // console.log("  → invoices & invoice_items");
 
-  // Invoice 1 — Acme Corp, paid in full, 10% discount
-  const invoice1 = await createInvoice({
-    customer_id:    acme.id,
-    created_by:     admin.id,
-    discount_type:  "percentage",
-    discount_value: 10,
-    due_date:       new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-    notes:          "Workstation setup for new Berlin office",
-    items: [
-      { product_id: laptop.id,   product_name: laptop.name,   unit_price: 1299.99, quantity: 2 },
-      { product_id: monitor.id,  product_name: monitor.name,  unit_price: 649.00,  quantity: 2 },
-      { product_id: keyboard.id, product_name: keyboard.name, unit_price: 129.00,  quantity: 2 },
-    ],
-  });
+  // // Invoice 1 — Acme Corp, paid in full, 10% discount
+  // const invoice1 = await createInvoice({
+  //   customer_id:    acme.id,
+  //   created_by:     admin.id,
+  //   discount_type:  "percentage",
+  //   discount_value: 10,
+  //   due_date:       new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+  //   notes:          "Workstation setup for new Berlin office",
+  //   items: [
+  //     { product_id: laptop.id,   product_name: laptop.name,   unit_price: 1299.99, quantity: 2 },
+  //     { product_id: monitor.id,  product_name: monitor.name,  unit_price: 649.00,  quantity: 2 },
+  //     { product_id: keyboard.id, product_name: keyboard.name, unit_price: 129.00,  quantity: 2 },
+  //   ],
+  // });
 
-  // Invoice 2 — Globex, sent, €100 flat discount — split into 2 installments
-  const invoice2 = await createInvoice({
-    customer_id:    globex.id,
-    created_by:     manager.id,
-    discount_type:  "amount",
-    discount_value: 100,
-    due_date:       new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
-    items: [
-      { product_id: laptop.id,  product_name: laptop.name,  unit_price: 1299.99, quantity: 1 },
-      { product_id: docking.id, product_name: docking.name, unit_price: 199.00,  quantity: 1 },
-      { product_id: headset.id, product_name: headset.name, unit_price: 249.00,  quantity: 1 },
-    ],
-  });
+  // // Invoice 2 — Globex, sent, €100 flat discount — split into 2 installments
+  // const invoice2 = await createInvoice({
+  //   customer_id:    globex.id,
+  //   created_by:     manager.id,
+  //   discount_type:  "amount",
+  //   discount_value: 100,
+  //   due_date:       new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+  //   items: [
+  //     { product_id: laptop.id,  product_name: laptop.name,  unit_price: 1299.99, quantity: 1 },
+  //     { product_id: docking.id, product_name: docking.name, unit_price: 199.00,  quantity: 1 },
+  //     { product_id: headset.id, product_name: headset.name, unit_price: 249.00,  quantity: 1 },
+  //   ],
+  // });
 
-  // Invoice 3 — Initech, draft, no discount
-  await createInvoice({
-    customer_id: initech.id,
-    created_by:  staff.id,
-    due_date:    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    notes:       "Q2 peripherals order",
-    items: [
-      { product_id: mouse.id,  product_name: mouse.name,  unit_price: 49.99,  quantity: 5 },
-      { product_id: webcam.id, product_name: webcam.name, unit_price: 89.00,  quantity: 3 },
-      { product_id: ssd.id,    product_name: ssd.name,    unit_price: 109.99, quantity: 2 },
-    ],
-  });
+  // // Invoice 3 — Initech, draft, no discount
+  // await createInvoice({
+  //   customer_id: initech.id,
+  //   created_by:  staff.id,
+  //   due_date:    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+  //   notes:       "Q2 peripherals order",
+  //   items: [
+  //     { product_id: mouse.id,  product_name: mouse.name,  unit_price: 49.99,  quantity: 5 },
+  //     { product_id: webcam.id, product_name: webcam.name, unit_price: 89.00,  quantity: 3 },
+  //     { product_id: ssd.id,    product_name: ssd.name,    unit_price: 109.99, quantity: 2 },
+  //   ],
+  // });
 
-  // Invoice 4 — Umbrella, overdue, 5% discount, partial payment
-  const invoice4 = await createInvoice({
-    customer_id:    umbrella.id,
-    created_by:     admin.id,
-    discount_type:  "percentage",
-    discount_value: 5,
-    due_date:       new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
-    items: [
-      { product_id: laptop.id,  product_name: laptop.name,  unit_price: 1299.99, quantity: 3 },
-      { product_id: monitor.id, product_name: monitor.name, unit_price: 649.00,  quantity: 3 },
-    ],
-  });
+  // // Invoice 4 — Umbrella, overdue, 5% discount, partial payment
+  // const invoice4 = await createInvoice({
+  //   customer_id:    umbrella.id,
+  //   created_by:     admin.id,
+  //   discount_type:  "percentage",
+  //   discount_value: 5,
+  //   due_date:       new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+  //   items: [
+  //     { product_id: laptop.id,  product_name: laptop.name,  unit_price: 1299.99, quantity: 3 },
+  //     { product_id: monitor.id, product_name: monitor.name, unit_price: 649.00,  quantity: 3 },
+  //   ],
+  // });
 
-  // Invoice 5 — Stark Industries, sent, no discount — split into 3 installments
-  const invoice5 = await createInvoice({
-    customer_id: stark.id,
-    created_by:  manager.id,
-    due_date:    new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
-    notes:       "Full team workstation rollout — 5 seats",
-    items: [
-      { product_id: laptop.id,   product_name: laptop.name,   unit_price: 1299.99, quantity: 5 },
-      { product_id: docking.id,  product_name: docking.name,  unit_price: 199.00,  quantity: 5 },
-      { product_id: headset.id,  product_name: headset.name,  unit_price: 249.00,  quantity: 5 },
-      { product_id: keyboard.id, product_name: keyboard.name, unit_price: 129.00,  quantity: 5 },
-    ],
-  });
+  // // Invoice 5 — Stark Industries, sent, no discount — split into 3 installments
+  // const invoice5 = await createInvoice({
+  //   customer_id: stark.id,
+  //   created_by:  manager.id,
+  //   due_date:    new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+  //   notes:       "Full team workstation rollout — 5 seats",
+  //   items: [
+  //     { product_id: laptop.id,   product_name: laptop.name,   unit_price: 1299.99, quantity: 5 },
+  //     { product_id: docking.id,  product_name: docking.name,  unit_price: 199.00,  quantity: 5 },
+  //     { product_id: headset.id,  product_name: headset.name,  unit_price: 249.00,  quantity: 5 },
+  //     { product_id: keyboard.id, product_name: keyboard.name, unit_price: 129.00,  quantity: 5 },
+  //   ],
+  // });
 
-  // ── Installments (custom splits) ──────────────────────────
-  console.log("  → installments (custom splits)");
+  // // ── Installments (custom splits) ──────────────────────────
+  // console.log("  → installments (custom splits)");
 
-  // Split invoice2's single installment 50/50 into 2
-  const [inv2Inst] = await getInstallmentsByInvoice(invoice2.id);
-  await splitInstallment(
-    inv2Inst.id,
-    Number((Number(inv2Inst.amount_due) * 0.5).toFixed(2)),
-    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-  );
+  // // Split invoice2's single installment 50/50 into 2
+  // const [inv2Inst] = await getInstallmentsByInvoice(invoice2.id);
+  // await splitInstallment(
+  //   inv2Inst.id,
+  //   Number((Number(inv2Inst.amount_due) * 0.5).toFixed(2)),
+  //   new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  // );
 
-  // Split invoice5 into 3 equal parts — two consecutive splits from the front
-  const [inv5Inst] = await getInstallmentsByInvoice(invoice5.id);
-  const inv5Part   = Number((Number(inv5Inst.amount_due) / 3).toFixed(2));
+  // // Split invoice5 into 3 equal parts — two consecutive splits from the front
+  // const [inv5Inst] = await getInstallmentsByInvoice(invoice5.id);
+  // const inv5Part   = Number((Number(inv5Inst.amount_due) / 3).toFixed(2));
 
-  // First split: [full] → [part1, remainder]
-  await splitInstallment(
-    inv5Inst.id,
-    inv5Part,
-    new Date(Date.now() + 20 * 24 * 60 * 60 * 1000)
-  );
+  // // First split: [full] → [part1, remainder]
+  // await splitInstallment(
+  //   inv5Inst.id,
+  //   inv5Part,
+  //   new Date(Date.now() + 20 * 24 * 60 * 60 * 1000)
+  // );
 
-  // Second split: split the remainder → [part2, part3]
-  const inv5Installments = await getInstallmentsByInvoice(invoice5.id);
-  const inv5Remainder    = inv5Installments[1];
-  await splitInstallment(
-    inv5Remainder.id,
-    inv5Part,
-    new Date(Date.now() + 40 * 24 * 60 * 60 * 1000)
-  );
+  // // Second split: split the remainder → [part2, part3]
+  // const inv5Installments = await getInstallmentsByInvoice(invoice5.id);
+  // const inv5Remainder    = inv5Installments[1];
+  // await splitInstallment(
+  //   inv5Remainder.id,
+  //   inv5Part,
+  //   new Date(Date.now() + 40 * 24 * 60 * 60 * 1000)
+  // );
 
-  // ── Payments ──────────────────────────────────────────────
-  console.log("  → payments & payment_installments");
+  // // ── Payments ──────────────────────────────────────────────
+  // console.log("  → payments & payment_installments");
 
-  // Invoice 1 — paid in full via single payment
-  const [inst1] = await getInstallmentsByInvoice(invoice1.id);
-  await createPayment({
-    invoice_id:     invoice1.id,
-    amount:         Number(inst1.amount_due),
-    payment_method: "bank_transfer",
-    reference:      "TXN-2024-001",
-    paid_at:        new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
-    allocations: [
-      { installment_id: inst1.id, amount_allocated: Number(inst1.amount_due) },
-    ],
-  });
-  // createPayment sets invoice to 'paid' automatically; re-confirm status
-  // await updateInvoiceStatus(invoice1.id, "paid");
+  // // Invoice 1 — paid in full via single payment
+  // const [inst1] = await getInstallmentsByInvoice(invoice1.id);
+  // await createPayment({
+  //   invoice_id:     invoice1.id,
+  //   amount:         Number(inst1.amount_due),
+  //   payment_method: "bank_transfer",
+  //   reference:      "TXN-2024-001",
+  //   paid_at:        new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
+  //   allocations: [
+  //     { installment_id: inst1.id, amount_allocated: Number(inst1.amount_due) },
+  //   ],
+  // });
+  // // createPayment sets invoice to 'paid' automatically; re-confirm status
+  // // await updateInvoiceStatus(invoice1.id, "paid");
 
-  // Invoice 4 — 40% partial payment against the overdue installment
-  const [inst4] = await getInstallmentsByInvoice(invoice4.id);
-  const partialAmount = Number((Number(inst4.amount_due) * 0.4).toFixed(2));
-  await createPayment({
-    invoice_id:     invoice4.id,
-    amount:         partialAmount,
-    payment_method: "bank_transfer",
-    reference:      "TXN-2024-002",
-    paid_at:        new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-    allocations: [
-      { installment_id: inst4.id, amount_allocated: partialAmount },
-    ],
-  });
+  // // Invoice 4 — 40% partial payment against the overdue installment
+  // const [inst4] = await getInstallmentsByInvoice(invoice4.id);
+  // const partialAmount = Number((Number(inst4.amount_due) * 0.4).toFixed(2));
+  // await createPayment({
+  //   invoice_id:     invoice4.id,
+  //   amount:         partialAmount,
+  //   payment_method: "bank_transfer",
+  //   reference:      "TXN-2024-002",
+  //   paid_at:        new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+  //   allocations: [
+  //     { installment_id: inst4.id, amount_allocated: partialAmount },
+  //   ],
+  // });
   // await updateInvoiceStatus(invoice4.id, "overdue");
 
   console.log("✅  Seed complete.");

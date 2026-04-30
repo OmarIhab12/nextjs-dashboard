@@ -10,11 +10,18 @@ async function drop() {
   await sql`DROP TRIGGER IF EXISTS trg_customers_updated_at        ON customers`;
   await sql`DROP TRIGGER IF EXISTS trg_users_updated_at            ON users`;
   await sql`DROP TRIGGER IF EXISTS trg_invoice_default_installment ON invoices`;
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_insert ON invoice_items`;
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_update ON invoice_items`;
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_delete ON invoice_items`;
+
 
   // Functions
   await sql`DROP FUNCTION IF EXISTS set_updated_at()`;
   await sql`DROP FUNCTION IF EXISTS create_default_installment()`;
   await sql`DROP FUNCTION IF EXISTS installments_balanced(UUID)`;
+  await sql`DROP FUNCTION IF EXISTS update_stock_on_item_insert()`;
+  await sql`DROP FUNCTION IF EXISTS update_stock_on_item_update()`;
+  await sql`DROP FUNCTION IF EXISTS update_stock_on_item_delete()`;
 
   // Tables — dependants before parents
   await sql`DROP TABLE IF EXISTS payment_installments`;
