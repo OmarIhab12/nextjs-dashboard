@@ -119,3 +119,33 @@ export async function deleteProduct(id: string): Promise<boolean> {
   `;
   return result.count > 0;
 }
+
+const ITEMS_PER_PAGE = 10;
+ 
+export async function fetchFilteredProducts(
+  query: string,
+  currentPage: number
+): Promise<Product[]> {
+  const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+ 
+  return sql<Product[]>`
+    SELECT * FROM products
+    WHERE
+      name        ILIKE ${`%${query}%`} OR
+      sku         ILIKE ${`%${query}%`} OR
+      description ILIKE ${`%${query}%`}
+    ORDER BY created_at DESC
+    LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
+  `;
+}
+ 
+export async function fetchProductPages(query: string): Promise<number> {
+  const [{ count }] = await sql<{ count: string }[]>`
+    SELECT COUNT(*) FROM products
+    WHERE
+      name        ILIKE ${`%${query}%`} OR
+      sku         ILIKE ${`%${query}%`} OR
+      description ILIKE ${`%${query}%`}
+  `;
+  return Math.ceil(Number(count) / ITEMS_PER_PAGE);
+}
