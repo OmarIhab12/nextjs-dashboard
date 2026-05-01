@@ -47,7 +47,16 @@ export default function Form({ customers, products }: { customers: Customer[]; p
         <CustomerSelect customers={customers} errors={state.errors?.customer_id} />
 
         {/* Discount */}
-        <DiscountFields errors={{ discount_type: state.errors?.discount_type, discount_value: state.errors?.discount_value }} />
+        <DiscountFields
+          discountType={discountType}
+          discountValue={discountValue}
+          onTypeChange={setDiscountType}
+          onValueChange={setDiscountValue}
+          errors={{
+            discount_type:  state.errors?.discount_type,
+            discount_value: state.errors?.discount_value,
+          }}
+        />
         
         {/* Due date */}
         <DueDateField errors={state.errors?.due_date} />

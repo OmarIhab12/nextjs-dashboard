@@ -4,7 +4,7 @@ import { UserCircleIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline'
 import { TbDiscount } from 'react-icons/tb';
 import { useState } from 'react';
 import DatePicker from 'react-datepicker';
-import { CustomerField } from '@/app/lib/definitions';
+import { Customer } from '@/app/lib/db/customers';
 import { InvoiceStatus } from '@/app/ui/invoices/status';
 import type { InvoiceStatus as InvoiceStatusType, DiscountType } from '@/app/lib/db/invoices';
 import { fmt } from '@/app/lib/utils';
@@ -15,7 +15,7 @@ export function CustomerSelect({
   defaultValue,
   errors,
 }: {
-  customers: CustomerField[];
+  customers: Customer[];
   defaultValue?: string;
   errors?: string[];
 }) {
@@ -50,14 +50,18 @@ export function CustomerSelect({
 
 // ── DiscountFields ────────────────────────────────────────────
 export function DiscountFields({
-  defaultType,
-  defaultValue,
+  discountType,
+  discountValue,
+  onTypeChange,
+  onValueChange,
   errors,
 }: {
-  defaultType?: DiscountType | null;
-  defaultValue?: number | null;
+  discountType:   DiscountType | '';
+  discountValue:  number;
+  onTypeChange:   (v: DiscountType | '') => void;
+  onValueChange:  (v: number) => void;
   errors?: {
-    discount_type?: string[];
+    discount_type?:  string[];
     discount_value?: string[];
   };
 }) {
@@ -72,8 +76,9 @@ export function DiscountFields({
           <select
             id="discount_type"
             name="discount_type"
-            defaultValue={defaultType ?? ''}
-            className="peer block w-full cursor-pointer rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
+            value={discountType}
+            onChange={(e) => onTypeChange(e.target.value as DiscountType | '')}
+            className="peer block w-full cursor-pointer rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500" 
           >
             <option value="" disabled>Select discount type</option>
             <option value="percentage">Percentage (%)</option>
@@ -100,9 +105,10 @@ export function DiscountFields({
             type="number"
             step="0.01"
             min={0}
-            defaultValue={defaultValue ?? ''}
+            value={discountValue}
+            onChange={(e) => onValueChange(parseFloat(e.target.value) || 0)}
             placeholder="0.00"
-            className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
+            className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500" 
           />
           <CurrencyDollarIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500 peer-focus:text-gray-900" />
         </div>
