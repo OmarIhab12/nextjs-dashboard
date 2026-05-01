@@ -97,3 +97,37 @@ export async function deleteCustomer(id: string): Promise<boolean> {
   `;
   return result.count > 0;
 }
+
+const ITEMS_PER_PAGE = 10;
+ 
+export async function fetchFilteredCustomers(
+  query: string,
+  currentPage: number
+): Promise<Customer[]> {
+  const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+ 
+  return sql<Customer[]>`
+    SELECT * FROM customers
+    WHERE
+      name    ILIKE ${`%${query}%`} OR
+      email   ILIKE ${`%${query}%`} OR
+      city    ILIKE ${`%${query}%`} OR
+      country ILIKE ${`%${query}%`} OR
+      address ILIKE ${`%${query}%`}
+    ORDER BY created_at DESC
+    LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
+  `;
+}
+ 
+export async function fetchCustomersPages(query: string): Promise<number> {
+  const [{ count }] = await sql<{ count: string }[]>`
+    SELECT COUNT(*) FROM customers
+    WHERE
+      name    ILIKE ${`%${query}%`} OR
+      email   ILIKE ${`%${query}%`} OR
+      city    ILIKE ${`%${query}%`} OR
+      country ILIKE ${`%${query}%`} OR
+      address ILIKE ${`%${query}%`}
+  `;
+  return Math.ceil(Number(count) / ITEMS_PER_PAGE);
+}
