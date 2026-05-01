@@ -11,6 +11,7 @@ export type ProductField = {
   sku: string | null;
   price: string;
   stock_quantity: number;
+  is_active : boolean;
 };
 
 export interface LineItem {
@@ -19,6 +20,7 @@ export interface LineItem {
   product_name: string;
   unit_price: number;
   quantity: number;
+  original_quantity: number;
 }
 
 // Shape of existing invoice items passed in for editing
@@ -36,7 +38,7 @@ function uid() {
 }
 
 function emptyItem(): LineItem {
-  return { _key: uid(), product_id: '', product_name: '', unit_price: 0, quantity: 1 };
+  return { _key: uid(), product_id: '', product_name: '', unit_price: 0, quantity: 1, original_quantity: 0 };
 }
 
 
@@ -61,6 +63,7 @@ export default function LineItems({
         product_name: item.product_name,
         unit_price:   parseFloat(item.unit_price),
         quantity:     item.quantity,
+        original_quantity: item.quantity,
       }));
     }
     return [emptyItem()];
@@ -147,6 +150,7 @@ export default function LineItems({
               maxQty += existingItem.quantity;
             }
           })
+          const isInactive = selectedProduct ? !selectedProduct.is_active : false;
           return (
             <div
               key={item._key}
@@ -163,24 +167,28 @@ export default function LineItems({
                   <option
                     key={p.id}
                     value={p.id}
-                    disabled={items.some((i) => i._key !== item._key && i.product_id === p.id)}
+                    disabled={
+                      !p.is_active ||
+                      items.some((i) => i._key !== item._key && i.product_id === p.id)
+                    }
                   >
-                    {p.name}{p.sku ? ` (${p.sku})` : ''}
+                    {p.name}{p.sku ? ` (${p.sku})` : ''}{!p.is_active ? ' — Inactive' : ''}
                   </option>
                 ))}
               </select>
 
+              
               {/* Qty */}
               <div className="flex flex-col gap-0.5">
                 <input
                   type="number"
                   min={1}
-                  max={maxQty}
+                  max={isInactive ? item.original_quantity : maxQty}
                   value={item.quantity}
                   onChange={(e) =>
                     updateItem(item._key, {
                       quantity: Math.min(
-                        maxQty,
+                        isInactive ? item.original_quantity : maxQty,
                         Math.max(1, parseInt(e.target.value) || 1)
                       ),
                     })
@@ -188,11 +196,13 @@ export default function LineItems({
                   className="block w-full rounded-md border border-gray-200 py-1.5 px-2 text-sm outline-2 text-center"
                 />
                 <p className={`text-center text-xs ${
-                  item.quantity >= maxQty && maxQty > 0
+                  isInactive
+                    ? 'text-orange-400'
+                    : item.quantity >= maxQty && maxQty > 0
                     ? 'text-red-500'
                     : 'text-gray-400'
                 }`}>
-                  {maxQty === 9999 ? 0 : maxQty} in stock
+                  {isInactive ? `Inactive (${item.original_quantity})` : `${maxQty === 9999 ? 0 : maxQty} in stock`}
                 </p>
               </div>
 
