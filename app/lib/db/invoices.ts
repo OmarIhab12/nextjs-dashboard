@@ -602,6 +602,11 @@ export async function updateInvoiceAction(
     };
   }
 
+  const existingItems = await getInvoiceById(id);
+  const existingItemMap = new Map(
+    existingItems?.items.map((i) => [i.product_id, i.quantity]) ?? []
+  );
+
   for (const item of items) {
     if (!item.product_id) continue;
     const product = await getProductById(item.product_id);
@@ -611,7 +616,10 @@ export async function updateInvoiceAction(
         message: 'Validation failed.',
       };
     }
-    if (item.quantity > product.stock_quantity) {
+    const alreadyReserved = existingItemMap.get(item.product_id) ?? 0;
+    const availableStock  = product.stock_quantity + Number(alreadyReserved);
+
+    if (item.quantity > availableStock) {
       return {
         errors: {
           items: [

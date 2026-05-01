@@ -10,6 +10,9 @@ import {
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import { createProductAction, updateProductAction } from '@/app/lib/actions/products';
+import {
+  TableContainer, TableRows, TableActions, TableEmpty,
+} from '@/app/ui/table-components';
 
 // ── Types ─────────────────────────────────────────────────────
 export type ProductRow = {
@@ -253,8 +256,7 @@ export default function ProductsTable({ products }: { products: ProductRow[] }) 
   // ── Render ─────────────────────────────────────────────────
   return (
     <div className="mt-6 flow-root">
-      {/* Shared grid wrapper */}
-      <div className="rounded-md border border-gray-200 bg-white overflow-hidden">
+      <TableContainer>
 
         {/* Column headers — + icon in last column to add new row */}
         <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_5rem] gap-2 border-b border-gray-100 bg-gray-50 px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-400">
@@ -276,8 +278,7 @@ export default function ProductsTable({ products }: { products: ProductRow[] }) 
           </div>
         </div>
 
-        {/* Rows */}
-        <div className="divide-y divide-gray-100">
+        <TableRows>
           {rows.map((row) => {
             const isEditing = row.mode === 'edit' || row.mode === 'new';
             const state     = editStates[row._key];
@@ -347,7 +348,7 @@ export default function ProductsTable({ products }: { products: ProductRow[] }) 
                   )}
 
                   {/* Actions */}
-                  <div className="flex items-center justify-end gap-1">
+                  <TableActions>
                     {isEditing ? (
                       <>
                         <button type="button" onClick={() => row.mode === 'new' ? saveNew(row) : saveEdit(row)}
@@ -380,7 +381,7 @@ export default function ProductsTable({ products }: { products: ProductRow[] }) 
                         </button>
                       </>
                     )}
-                  </div>
+                  </TableActions>
                 </div>
 
                 {/* Per-row error */}
@@ -389,13 +390,11 @@ export default function ProductsTable({ products }: { products: ProductRow[] }) 
             );
           })}
 
-          {rows.length === 0 && (
-            <div className="py-10 text-center text-sm text-gray-400">
-              No products found.
-            </div>
-          )}
-        </div>
-      </div>
+          {rows.length === 0 && <TableEmpty message="No products found." />}
+        </TableRows>
+
+      </TableContainer>
     </div>
   );
 }
+

@@ -15,6 +15,10 @@ import { useState, useActionState } from "react";
 import LineItems from '@/app/ui/invoices/line-items';
 import { Product } from '@/app/lib/db/products';
 import { fmt } from '@/app/lib/utils';
+import {
+  CustomerSelect, DiscountFields, DueDateField,
+  InvoiceStatusField, NotesField, FormErrorMessage, MoneyField
+} from '@/app/ui/invoices/form-components';
 
 export default function EditInvoiceForm({
   invoice,
@@ -54,235 +58,20 @@ export default function EditInvoiceForm({
       <div className="rounded-md bg-gray-50 p-4 md:p-6">
         
         {/* Customer Name */}
-        <div className="mb-4">
-          <label htmlFor="customer" className="mb-2 block text-sm font-medium">
-            Choose customer
-          </label>
-          <div className="relative">
-            <select
-              id="customer"
-              name="customer_id"
-              className="peer block w-full cursor-pointer rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
-              defaultValue={invoice.customer_id}
-            >
-              <option value="" disabled>
-                Select a customer
-              </option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
-                </option>
-              ))}
-            </select>
-            <UserCircleIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500" />
-          </div>
-          <div id="customer-error" aria-live="polite" aria-atomic="true">
-            {state.errors?.customer_id &&
-              state.errors.customer_id.map((error: string) => (
-                <p className="mt-2 text-sm text-red-500" key={error}>
-                  {error}
-                </p>
-              ))}
-          </div>
-        </div>
+        <CustomerSelect customers={customers} defaultValue={invoice.customer_id} errors={state.errors?.customer_id} />
 
-        {/* Invoice Amount */}
-        {/* <div className="mb-4">
-          <label htmlFor="total" className="mb-2 block text-sm font-medium">
-            Total invoice price
-          </label>
-          <div className="relative mt-2 rounded-md">
-            <div className="relative">
-              <input
-                id="total"
-                name="total"
-                type="number"
-                step="0.01"
-                defaultValue={invoice.total}
-                placeholder="Enter USD amount"
-                className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
-              />
-              <CurrencyDollarIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500 peer-focus:text-gray-900" />
-            </div>
-          </div>
-        </div> */}
+        {/* Discount */}
+        <DiscountFields defaultType={invoice.discount_type} defaultValue={invoice.discount_value} errors={{ discount_type: state.errors?.discount_type, discount_value: state.errors?.discount_value }} />
 
-        {/* Discount Type */}
-        <div className="mb-4">
-          <label htmlFor="customer" className="mb-2 block text-sm font-medium">
-            Choose discount type
-          </label>
-          <div className="relative">
-            <select
-              id="discount_type"
-              name="discount_type"
-              className="peer block w-full cursor-pointer rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
-              defaultValue={invoice.discount_type}
-              onChange={(e) => setDiscountType(e.target.value as typeof discountType)}
-            >
-              <option value="" disabled>
-                Select discount type
-              </option>
-              <option key="percentage" value="percentage">
-                percentage
-              </option>
-
-              <option key="amount" value="amount">
-                amount
-              </option>
-
-            </select>
-            <TbDiscount className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500" />
-          </div>
-          <div id="discount-type-error" aria-live="polite" aria-atomic="true">
-            {state.errors?.discount_type &&
-              state.errors.discount_type.map((error: string) => (
-                <p className="mt-2 text-sm text-red-500" key={error}>
-                  {error}
-                </p>
-              ))}
-          </div>
-        </div>
-
-        {/* Discount Amount */}
-        <div className="mb-4">
-          <label htmlFor="total" className="mb-2 block text-sm font-medium">
-            Discount amount
-          </label>
-          <div className="relative mt-2 rounded-md">
-            <div className="relative">
-              <input
-                id="discount_value"
-                name="discount_value"
-                type="number"
-                step="0.01"
-                defaultValue={invoice.discount_value}
-                onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
-                placeholder="Enter USD amount"
-                className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
-              />
-              <CurrencyDollarIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500 peer-focus:text-gray-900" />
-            </div>
-          </div>
-          <div id="discount-value-error" aria-live="polite" aria-atomic="true">
-            {state.errors?.discount_value &&
-              state.errors.discount_value.map((error: string) => (
-                <p className="mt-2 text-sm text-red-500" key={error}>
-                  {error}
-                </p>
-              ))}
-          </div>
-        </div>
-        
         {/* Due date */}
-        <div className="mb-4">
-          <label htmlFor="total" className="mb-2 block text-sm font-medium">
-            Due date
-          </label>
-          <div className="relative mt-2 rounded-md">
-            <div className="relative">
-              <DatePicker
-                id="due_date"
-                name="due_date"
-                selected={startDate}
-                onChange={(date: Date| null) => { if (date) setStartDate(date); }}
-                minDate={new Date()}
-              />
-            </div>
-          </div>
-          <div id="customer-error" aria-live="polite" aria-atomic="true">
-            {state.errors?.due_date &&
-              state.errors.due_date.map((error: string) => (
-                <p className="mt-2 text-sm text-red-500" key={error}>
-                  {error}
-                </p>
-              ))}
-          </div>
-        </div>
+        <DueDateField defaultValue={invoice.due_date} errors={state.errors?.due_date} />
 
         
         {/* Invoice Status */}
-        <div className="mb-4">
-        <fieldset>
-          <legend className="mb-2 block text-sm font-medium">
-            Set the invoice status
-          </legend>
-          <div className="rounded-md border border-gray-200 bg-white px-[14px] py-3">
-            <div className="flex gap-4">
-              <div className="flex items-center">
-                <input
-                  id="draft"
-                  name="status"
-                  type="radio"
-                  value="draft"
-                  defaultChecked={invoice.status === 'draft'}
-                  className="h-4 w-4 cursor-pointer border-gray-300 bg-gray-100 text-gray-600 focus:ring-2"
-                />
-                <div className='ml-1'>
-                <InvoiceStatus status={"draft"} />
-                </div>
-              </div>
-              <div className="flex items-center">
-                <input
-                  id="confirmed"
-                  name="status"
-                  type="radio"
-                  value="confirmed"
-                  defaultChecked={invoice.status === 'confirmed'}
-                  className="h-4 w-4 cursor-pointer border-gray-300 bg-gray-100 text-gray-600 focus:ring-2"
-                />
-                <div className='ml-1'>
-                <InvoiceStatus status={"confirmed"} />
-                </div>
-              </div>
-              <div className="flex items-center">
-                <input
-                  id="shipped"
-                  name="status"
-                  type="radio"
-                  value="shipped"
-                  defaultChecked={invoice.status === 'shipped'}
-                  className="h-4 w-4 cursor-pointer border-gray-300 bg-gray-100 text-gray-600 focus:ring-2"
-                />
-                <div className='ml-1'>
-                <InvoiceStatus status={"shipped"} />
-                </div>
-              </div>
-              <div className="flex items-center">
-                <input
-                  id="cancelled"
-                  name="status"
-                  type="radio"
-                  value="cancelled"
-                  defaultChecked={invoice.status === 'cancelled'}
-                  className="h-4 w-4 cursor-pointer border-gray-300 bg-gray-100 text-gray-600 focus:ring-2"
-                />
-                <div className='ml-1'>
-                <InvoiceStatus status={"cancelled"} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </fieldset>
-        </div>
+        <InvoiceStatusField defaultValue={invoice.status} />
 
         {/* Notes */}
-        <div className="mb-4">
-          <label htmlFor="total" className="mb-2 block text-sm font-medium">
-            Notes
-          </label>
-          <div className="relative mt-2 rounded-md">
-            <div className="relative">
-              <input
-                id="notes"
-                name="notes"
-                defaultValue={invoice.notes?? undefined}
-                placeholder="Enter extra notes"
-                className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
-              />
-            </div>
-          </div>
-          </div>
+        <NotesField defaultValue={invoice.notes} />
 
         {/* ── Line Items ── */}
         <LineItems
@@ -293,34 +82,17 @@ export default function EditInvoiceForm({
         />
 
         {/* ── Totals ── */}
-        <div className="mt-4 rounded-md border border-gray-200 bg-white p-4 space-y-2">
-          <div className="flex justify-between text-sm text-gray-600">
-            <span>Subtotal</span>
-            <span className="tabular-nums">${fmt(subtotal)}</span>
-          </div>
-
-          {discountAmount > 0 && (
-            <div className="flex justify-between text-sm text-green-600">
-              <span>
-                Discount
-                {discountType === 'percentage' ? ` (${discountValue}%)` : ''}
-              </span>
-              <span className="tabular-nums">−${fmt(discountAmount)}</span>
-            </div>
-          )}
-
-          <div className="flex justify-between border-t border-gray-100 pt-2 text-base font-semibold text-gray-900">
-            <span>Total</span>
-            <span className="tabular-nums">${fmt(total)}</span>
-          </div>
-        </div>
+        <MoneyField
+          subtotal={subtotal}
+          discountAmount={discountAmount}
+          total={total}
+          discountType={discountType || undefined}
+          discountValue={discountValue || undefined}
+        />
 
         {/* Global error */}
-        <div className="mb-4">
-          {state.message && (
-            <p className="mt-2 text-sm text-red-500">{state.message}</p>
-          )}
-        </div>
+        <FormErrorMessage message={state.message} />
+      
       </div>
       <div className="mt-6 flex justify-end gap-4">
         <Link
