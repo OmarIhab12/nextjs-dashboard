@@ -3,6 +3,7 @@ import { getCustomerPageData } from '@/app/lib/db/customers';
 import CustomerDetail   from '@/app/ui/customers/customer-details';
 import CustomerInvoices from '@/app/ui/customers/customer-invoices';
 import CustomerPayments from '@/app/ui/customers/customer-payments';
+import { lusitana } from '@/app/ui/fonts';
 
 export default async function CustomerPage({
   params,
@@ -21,7 +22,7 @@ export default async function CustomerPage({
       {/* Back link */}
       <a
         href="/dashboard/customers"
-        className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+        className={`${lusitana.className} text-2xl inline-flex items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors`}
       >
         ← Customers
       </a>
