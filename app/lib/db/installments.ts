@@ -1,3 +1,4 @@
+import postgres from "postgres";
 import sql from "../db";
 
 export type PaymentStatus = "pending" | "partial" | "paid" | "overdue";
@@ -198,4 +199,94 @@ export async function deleteInstallment(id: string): Promise<boolean> {
       )
   `;
   return result.count > 0;
+}
+
+export async function syncInstallmentWithInvoice(
+  invoiceId: string,
+  newTotal: number,
+  customerId: string,
+  tx: postgres.TransactionSql
+): Promise<void> {
+  
+    // Get the invoice's installment
+    const [installment] = await tx`
+      SELECT * FROM installments
+      WHERE invoice_id = ${invoiceId}
+      ORDER BY installment_number ASC
+      LIMIT 1
+    `;
+
+    if (!installment) return;
+
+    const amountPaid = Number(installment.amount_paid);
+    const newRemaining = Number((newTotal - amountPaid).toFixed(2));
+
+    console.log(amountPaid.toFixed(2));
+    console.log(newRemaining.toFixed(2));
+
+    if (newRemaining >= 0) {
+      // Normal case — update amount_due and amount_remaining
+      await tx`
+        UPDATE installments
+        SET
+          amount_due       = ${newTotal.toFixed(2)},
+          amount_remaining = ${newRemaining.toFixed(2)},
+          status = CASE
+            WHEN ${newRemaining.toFixed(2)} = 0.00 THEN 'paid'::payment_status
+            WHEN ${amountPaid.toFixed(2)} > 0.00   THEN 'partial'::payment_status
+            ELSE 'pending'::payment_status
+          END
+        WHERE id = ${installment.id}
+      `;
+    } else {
+      // Overpaid case — amount_paid exceeds new total
+      // Set this installment to fully paid
+      const excess = Number((amountPaid - newTotal).toFixed(2));
+
+      await tx`
+        UPDATE installments
+        SET
+          amount_due       = ${newTotal.toFixed(2)},
+          amount_paid      = ${newTotal.toFixed(2)},
+          amount_remaining = 0,
+          status           = 'paid'::payment_status
+        WHERE id = ${installment.id}
+      `;
+
+      // Roll excess forward to oldest unpaid installment
+      // of the same customer (excluding this invoice)
+      const nextInstallments = await tx`
+        SELECT i.*
+        FROM installments i
+        JOIN invoices inv ON inv.id = i.invoice_id
+        WHERE inv.customer_id = ${customerId}
+          AND i.invoice_id    != ${invoiceId}
+          AND i.status        != 'paid'
+          AND i.amount_remaining > 0
+        ORDER BY i.due_date ASC NULLS LAST, i.created_at ASC
+      `;
+
+      let remaining = excess;
+
+      for (const inst of nextInstallments) {
+        if (remaining <= 0) break;
+
+        const allocated  = Math.min(remaining, Number(inst.amount_remaining));
+        remaining        = Number((remaining - allocated).toFixed(2));
+        const newPaid    = Number((Number(inst.amount_paid) + allocated).toFixed(2));
+        const newRem     = Number((Number(inst.amount_remaining) - allocated).toFixed(2));
+
+        await tx`
+          UPDATE installments
+          SET
+            amount_paid      = ${newPaid.toFixed(2)},
+            amount_remaining = ${newRem.toFixed(2)},
+            status = CASE
+              WHEN ${newRem.toFixed(2)} = 0 THEN 'paid'::payment_status
+              ELSE 'partial'::payment_status
+            END
+          WHERE id = ${inst.id}
+        `;
+      }
+    };
 }

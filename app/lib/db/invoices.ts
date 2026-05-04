@@ -1,7 +1,7 @@
 'use server';
 import sql from "../db";
 import { formatCurrency } from '../utils';
-import { PaymentStatus } from "./installments";
+import { PaymentStatus, syncInstallmentWithInvoice } from "./installments";
 import { z } from 'zod';
 import postgres from 'postgres';
 import { revalidatePath } from 'next/cache';
@@ -315,6 +315,9 @@ export async function updateInvoice(
   // Handle item changes
   await updateInvoiceItems(id, input.items, tx);
 
+  
+  await syncInstallmentWithInvoice(invoice.id, total, invoice.customer_id, tx);
+
   return invoice;
   
   });
@@ -390,7 +393,7 @@ export async function updateInvoiceItems(
       `;
     })
   );
-
+    
   // Return the updated items
   return tx<InvoiceItem[]>`
     SELECT * FROM invoice_items WHERE invoice_id = ${invoiceId}
