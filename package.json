@@ -7,10 +7,15 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@expo-google-fonts/amiri": "^0.4.1",
+    "@fontsource/amiri": "^5.2.8",
     "@heroicons/react": "^2.2.0",
+    "@react-pdf/renderer": "^4.5.1",
     "@tailwindcss/forms": "^0.5.10",
+    "arabic-reshaper": "^1.1.0",
     "autoprefixer": "10.4.20",
     "bcrypt": "^5.1.1",
+    "bidi-js": "^1.0.3",
     "clsx": "^2.1.1",
     "next": "latest",
     "next-auth": "5.0.0-beta.31",

@@ -101,6 +101,24 @@ export interface UpdateInvoiceForm {
   items: CreateInvoiceItemInput[];
 }
 
+export type InvoicePDFData = {
+  id:             string;
+  customerName:   string;
+  createdAt:      string;          // ISO date string
+  dueDate:        string | null;
+  subtotal:       number;
+  discountAmount: number;
+  total:          number;
+  notes:          string | null;
+  items: {
+    productName: string;
+    sku:         string | null;
+    quantity:    number;
+    unitPrice:   number;
+    lineTotal:   number;
+  }[];
+};
+
 // ── Helpers ──────────────────────────────────────────────────
 
 function computeTotals(
@@ -655,5 +673,79 @@ export async function updateInvoiceAction(
   
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
+}
+
+export async function fetchInvoiceForPDF(
+  invoiceId: string,
+): Promise<InvoicePDFData | null> {
+  // ── Invoice header ────────────────────────────────────────────────────
+  const [row] = await sql<
+    {
+      id:              string;
+      customer_name:   string;
+      created_at:      string;
+      due_date:        string | null;
+      subtotal:        string;
+      discount_amount: string;
+      total:           string;
+      notes:           string | null;
+    }[]
+  >`
+    SELECT
+      i.id,
+      c.name          AS customer_name,
+      i.created_at::text,
+      i.due_date::text,
+      i.subtotal,
+      i.discount_amount,
+      i.total,
+      i.notes
+    FROM invoices i
+    JOIN customers c ON c.id = i.customer_id
+    WHERE i.id = ${invoiceId}
+    LIMIT 1
+  `;
+
+  if (!row) return null;
+
+  // ── Line items ────────────────────────────────────────────────────────
+  const items = await sql<
+    {
+      product_name: string;
+      sku:          string | null;
+      quantity:     number;
+      unit_price:   string;
+      line_total:   string;
+    }[]
+  >`
+    SELECT
+      ii.product_name,
+      p.sku,
+      ii.quantity,
+      ii.unit_price,
+      ii.line_total
+    FROM invoice_items ii
+    LEFT JOIN products p ON p.id = ii.product_id
+    WHERE ii.invoice_id = ${invoiceId}
+    ORDER BY ii.id ASC
+  `;
+
+  return {
+    id:             row.id,
+    customerName:   row.customer_name,
+    createdAt:      row.created_at,
+    dueDate:        row.due_date,
+    subtotal:       parseFloat(row.subtotal),
+    discountAmount: parseFloat(row.discount_amount),
+    total:          parseFloat(row.total),
+    notes:          row.notes,
+    items: items.map((item) => ({
+      productName: item.product_name,
+      sku:         item.sku,
+      quantity:    item.quantity,
+      unitPrice:   parseFloat(item.unit_price),
+      lineTotal:   parseFloat(item.line_total),
+    })),
+  };
 }
 // OR invoices.status ILIKE ${`%${query}%`}
