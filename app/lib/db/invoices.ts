@@ -84,9 +84,9 @@ export interface CreateInvoiceInput {
   customer_id: string;
   created_by: string;
   items: CreateInvoiceItemInput[];
-  discount_type: DiscountType;
-  discount_value: number;
-  due_date: Date;
+  discount_type?: DiscountType;
+  discount_value?: number;
+  due_date?: Date;
   notes?: string;
 }
 
@@ -263,8 +263,8 @@ export async function createInvoice(
       ) VALUES (
         ${input.customer_id},
         ${input.created_by},
-        ${input.discount_type   ?? null}::discount_type,
-        ${input.discount_value  ?? null},
+        ${input.discount_type   ?? 'percentage'}::discount_type,
+        ${input.discount_value  ?? 0},
         ${subtotal},
         ${discountAmount},
         ${total},

@@ -283,11 +283,7 @@ export async function addPaymentForCustomer(
         UPDATE installments
         SET
           amount_paid      = amount_paid + ${allocated},
-          amount_remaining = amount_remaining - ${allocated},
-          status = CASE
-            WHEN amount_remaining - ${allocated} <= 0 THEN 'paid'::payment_status
-            ELSE 'partial'::payment_status
-          END
+          amount_remaining = amount_remaining - ${allocated}
         WHERE id = ${inst.id}
       `;
     }

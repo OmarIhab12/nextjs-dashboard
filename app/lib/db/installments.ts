@@ -149,15 +149,14 @@ export async function splitInstallment(
       INSERT INTO installments (
         invoice_id, installment_number,
         amount_due, amount_paid, amount_remaining,
-        due_date, status
+        due_date
       ) VALUES (
         ${original.invoice_id},
         ${original.installment_number + 1},
         ${secondAmount},
         0,
         ${secondAmount},
-        ${secondDueDate ?? null},
-        'pending'
+        ${secondDueDate ?? null}
       )
       RETURNING *
     `;
@@ -180,8 +179,7 @@ export async function updateInstallment(
         ELSE amount_remaining
       END,
       due_date = COALESCE(${input.due_date !== undefined ? input.due_date : null}, due_date),
-      notes    = COALESCE(${input.notes    !== undefined ? input.notes    : null}, notes),
-      status   = COALESCE(${input.status   ?? null}::installment_status, status)
+      notes    = COALESCE(${input.notes    !== undefined ? input.notes    : null}, notes)
     WHERE id = ${id}
     RETURNING *
   `;
@@ -230,12 +228,7 @@ export async function syncInstallmentWithInvoice(
         UPDATE installments
         SET
           amount_due       = ${newTotal.toFixed(2)},
-          amount_remaining = ${newRemaining.toFixed(2)},
-          status = CASE
-            WHEN ${newRemaining.toFixed(2)} = 0.00 THEN 'paid'::payment_status
-            WHEN ${amountPaid.toFixed(2)} > 0.00   THEN 'partial'::payment_status
-            ELSE 'pending'::payment_status
-          END
+          amount_remaining = ${newRemaining.toFixed(2)}
         WHERE id = ${installment.id}
       `;
     } else {
@@ -248,8 +241,7 @@ export async function syncInstallmentWithInvoice(
         SET
           amount_due       = ${newTotal.toFixed(2)},
           amount_paid      = ${newTotal.toFixed(2)},
-          amount_remaining = 0,
-          status           = 'paid'::payment_status
+          amount_remaining = 0
         WHERE id = ${installment.id}
       `;
 
@@ -280,11 +272,7 @@ export async function syncInstallmentWithInvoice(
           UPDATE installments
           SET
             amount_paid      = ${newPaid.toFixed(2)},
-            amount_remaining = ${newRem.toFixed(2)},
-            status = CASE
-              WHEN ${newRem.toFixed(2)} = 0 THEN 'paid'::payment_status
-              ELSE 'partial'::payment_status
-            END
+            amount_remaining = ${newRem.toFixed(2)}
           WHERE id = ${inst.id}
         `;
       }

@@ -6,43 +6,40 @@ async function schema() {
   // ── Extensions ─────────────────────────────────────────────
   await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
 
-  // ── Enums ──────────────────────────────────────────────────
-  await sql`
-    DO $$ BEGIN
-      CREATE TYPE user_role AS ENUM ('admin', 'manager', 'staff');
-    EXCEPTION WHEN duplicate_object THEN NULL; END $$
-  `;
-  await sql`
-    DO $$ BEGIN
-      CREATE TYPE invoice_status AS ENUM ('draft', 'confirmed', 'cancelled', 'shipped');
-    EXCEPTION WHEN duplicate_object THEN NULL; END $$
-  `;
-  await sql`
-    DO $$ BEGIN
-      CREATE TYPE discount_type AS ENUM ('percentage', 'amount');
-    EXCEPTION WHEN duplicate_object THEN NULL; END $$
-  `;
-  await sql`
-    DO $$ BEGIN
-      CREATE TYPE payment_status AS ENUM ('pending', 'partial', 'paid', 'overdue');
-    EXCEPTION WHEN duplicate_object THEN NULL; END $$
-  `;
-  await sql`
-    DO $$ BEGIN
-      CREATE TYPE payment_method AS ENUM ('bank_transfer', 'cash', 'card', 'check', 'other');
-    EXCEPTION WHEN duplicate_object THEN NULL; END $$
-  `;
+  // ════════════════════════════════════════════════════════════
+  // ENUMS
+  // ════════════════════════════════════════════════════════════
 
-  // ── Users ───────────────────────────────────────────────────
+  // — Core —
+  await sql`DO $$ BEGIN CREATE TYPE user_role          AS ENUM ('admin', 'manager', 'staff');                       EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE invoice_status     AS ENUM ('draft', 'confirmed', 'cancelled', 'shipped');      EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE discount_type      AS ENUM ('percentage', 'amount');                            EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE payment_status     AS ENUM ('pending', 'partial', 'paid', 'overdue');           EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE payment_method     AS ENUM ('bank_transfer', 'cash', 'card', 'vodafone_cash', 'other'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+
+  // — Financial —
+  await sql`DO $$ BEGIN CREATE TYPE wallet_currency        AS ENUM ('EGP', 'USD');                                              EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE wallet_direction       AS ENUM ('in', 'out');                                               EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE wallet_reason          AS ENUM ('conversion', 'expense', 'order_payment', 'invoice_payment'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE order_status           AS ENUM ('pending', 'partial', 'paid');                              EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE order_instalment_status AS ENUM ('pending', 'partial', 'paid', 'overdue');                             EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE expense_recurrence     AS ENUM ('once', 'monthly');                                         EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+
+  console.log("  ✓ Enums");
+
+  // ════════════════════════════════════════════════════════════
+  // CORE TABLES
+  // ════════════════════════════════════════════════════════════
+
   await sql`
     CREATE TABLE IF NOT EXISTS users (
-      id            UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
-      name          VARCHAR(255) NOT NULL,
-      email         VARCHAR(255) NOT NULL UNIQUE,
-      password      TEXT         NOT NULL,
-      role          user_role    NOT NULL DEFAULT 'staff',
-      created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-      updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+      id         UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+      name       VARCHAR(255) NOT NULL,
+      email      VARCHAR(255) NOT NULL UNIQUE,
+      password   TEXT         NOT NULL,
+      role       user_role    NOT NULL DEFAULT 'staff',
+      created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
     )
   `;
 
@@ -85,7 +82,7 @@ async function schema() {
       created_by      UUID           NOT NULL REFERENCES users(id)     ON DELETE RESTRICT,
       status          invoice_status NOT NULL DEFAULT 'draft',
       discount_type   discount_type  NOT NULL DEFAULT 'percentage',
-      discount_value  NUMERIC(12, 2) NOT NULL Default 0 CHECK(discount_value >= 0),
+      discount_value  NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (discount_value >= 0),
       subtotal        NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (subtotal >= 0),
       discount_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (discount_amount >= 0),
       total           NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (total >= 0),
@@ -93,11 +90,9 @@ async function schema() {
       notes           TEXT,
       created_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
       updated_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-
       CONSTRAINT discount_consistency CHECK (
         (discount_type IS NULL AND discount_value IS NULL)
-        OR
-        (discount_type IS NOT NULL AND discount_value IS NOT NULL)
+        OR (discount_type IS NOT NULL AND discount_value IS NOT NULL)
       )
     )
   `;
@@ -106,13 +101,12 @@ async function schema() {
   await sql`
     CREATE TABLE IF NOT EXISTS invoice_items (
       id           UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
-      invoice_id   UUID           NOT NULL REFERENCES invoices(id)  ON DELETE CASCADE,
-      product_id   UUID           REFERENCES products(id)           ON DELETE SET NULL,
+      invoice_id   UUID           NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+      product_id   UUID           REFERENCES products(id)          ON DELETE SET NULL,
       product_name VARCHAR(255)   NOT NULL,
       unit_price   NUMERIC(12, 2) NOT NULL CHECK (unit_price >= 0),
       quantity     INT            NOT NULL CHECK (quantity > 0),
       line_total   NUMERIC(12, 2) NOT NULL CHECK (line_total >= 0),
-
       UNIQUE (invoice_id, product_id)
     )
   `;
@@ -120,20 +114,18 @@ async function schema() {
   // ── Installments ────────────────────────────────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS installments (
-      id                 UUID               PRIMARY KEY DEFAULT uuid_generate_v4(),
-      invoice_id         UUID               NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
-      installment_number INT                NOT NULL CHECK (installment_number > 0),
-      amount_due         NUMERIC(12, 2)     NOT NULL CHECK (amount_due > 0),
-      amount_paid        NUMERIC(12, 2)     NOT NULL DEFAULT 0 CHECK (amount_paid >= 0),
-      amount_remaining   NUMERIC(12, 2)     NOT NULL DEFAULT 0 CHECK (amount_remaining >= 0),
+      id                 UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
+      invoice_id         UUID           NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+      installment_number INT            NOT NULL CHECK (installment_number > 0),
+      amount_due         NUMERIC(12, 2) NOT NULL CHECK (amount_due > 0),
+      amount_paid        NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (amount_paid >= 0),
+      amount_remaining   NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (amount_remaining >= 0),
       due_date           DATE,
       status             payment_status NOT NULL DEFAULT 'pending',
       notes              TEXT,
-      created_at         TIMESTAMPTZ        NOT NULL DEFAULT NOW(),
-      updated_at         TIMESTAMPTZ        NOT NULL DEFAULT NOW(),
-
+      created_at         TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+      updated_at         TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
       UNIQUE (invoice_id, installment_number),
-
       CONSTRAINT installment_paid_cap        CHECK (amount_paid <= amount_due),
       CONSTRAINT installment_remaining_check CHECK (amount_remaining = amount_due - amount_paid)
     )
@@ -157,28 +149,191 @@ async function schema() {
   await sql`
     CREATE TABLE IF NOT EXISTS payment_installments (
       id               UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
-      payment_id       UUID           NOT NULL REFERENCES payments(id)      ON DELETE CASCADE,
-      installment_id   UUID           NOT NULL REFERENCES installments(id)  ON DELETE RESTRICT,
+      payment_id       UUID           NOT NULL REFERENCES payments(id)     ON DELETE CASCADE,
+      installment_id   UUID           NOT NULL REFERENCES installments(id) ON DELETE RESTRICT,
       amount_allocated NUMERIC(12, 2) NOT NULL CHECK (amount_allocated > 0),
-
       UNIQUE (payment_id, installment_id)
     )
   `;
 
-  // ── Indexes ─────────────────────────────────────────────────
-  await sql`CREATE INDEX IF NOT EXISTS idx_invoices_customer_id  ON invoices(customer_id)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_invoices_created_by   ON invoices(created_by)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_invoices_status       ON invoices(status)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON invoice_items(invoice_id)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_invoice_items_product ON invoice_items(product_id)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_installments_invoice  ON installments(invoice_id)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_installments_status   ON installments(status)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_installments_due_date ON installments(due_date)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_payments_invoice      ON payments(invoice_id)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_pay_inst_payment      ON payment_installments(payment_id)`;
-  await sql`CREATE INDEX IF NOT EXISTS idx_pay_inst_installment  ON payment_installments(installment_id)`;
+  console.log("  ✓ Core tables");
 
-  // ── updated_at trigger function ─────────────────────────────
+  // ════════════════════════════════════════════════════════════
+  // FINANCIAL TABLES
+  // ════════════════════════════════════════════════════════════
+
+  // ── Company Wallet (single-row live balance) ─────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS company_wallet (
+      id          UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
+      egp_balance NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+      usd_balance NUMERIC(14, 2) NOT NULL DEFAULT 0.00,
+      updated_at  TIMESTAMPTZ    NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`
+    INSERT INTO company_wallet (egp_balance, usd_balance)
+    SELECT 0.00, 0.00 WHERE NOT EXISTS (SELECT 1 FROM company_wallet)
+  `;
+
+  // ── Wallet Transactions (immutable ledger) ───────────────────
+  // corrects_id: NULL on normal entries.
+  // On a reversal row  → points to the original transaction it reverses.
+  // On a correction row → points to the reversal row.
+  // Chain: original → reversal → correction
+  await sql`
+    CREATE TABLE IF NOT EXISTS wallet_transactions (
+      id           UUID             PRIMARY KEY DEFAULT uuid_generate_v4(),
+      currency     wallet_currency  NOT NULL,
+      amount       NUMERIC(14, 2)   NOT NULL CHECK (amount > 0),
+      direction    wallet_direction NOT NULL,
+      reason       wallet_reason    NOT NULL,
+      reference_id UUID             NOT NULL,
+      corrects_id  UUID             REFERENCES wallet_transactions(id) ON DELETE SET NULL,
+      created_at   TIMESTAMPTZ      NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  // ── Currency Conversions (EGP ↔ USD) ────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS currency_conversions (
+      id            UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
+      egp_amount    NUMERIC(14, 2) NOT NULL CHECK (egp_amount > 0),
+      usd_amount    NUMERIC(14, 2) NOT NULL CHECK (usd_amount > 0),
+      exchange_rate NUMERIC(10, 4) NOT NULL CHECK (exchange_rate > 0),
+      notes         TEXT,
+      converted_at  TIMESTAMPTZ    NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  // ── Suppliers ────────────────────────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS suppliers (
+      id         UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
+      name       VARCHAR(255) NOT NULL,
+      email      VARCHAR(255) UNIQUE,
+      phone      VARCHAR(50),
+      address    TEXT,
+      city       VARCHAR(100),
+      country    VARCHAR(100),
+      notes      TEXT,
+      created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  // ── Orders (us → supplier, USD) ──────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS orders (
+      id          UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
+      supplier_id UUID           REFERENCES suppliers(id) ON DELETE SET NULL,
+      total_usd   NUMERIC(14, 2) NOT NULL CHECK (total_usd > 0),
+      paid_usd    NUMERIC(14, 2) NOT NULL DEFAULT 0.00 CHECK (paid_usd >= 0),
+      status      order_status   NOT NULL DEFAULT 'pending',
+      notes       TEXT,
+      order_date  TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+      updated_at  TIMESTAMPTZ    NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  // ── Order Instalments (scheduled payment expectations) ───────
+  await sql`
+    CREATE TABLE IF NOT EXISTS order_instalments (
+      id                UUID                    PRIMARY KEY DEFAULT uuid_generate_v4(),
+      order_id          UUID                    NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      instalment_number INT                     NOT NULL CHECK (instalment_number > 0),
+      amount_due        NUMERIC(14, 2)          NOT NULL CHECK (amount_due > 0),
+      amount_paid       NUMERIC(14, 2)          NOT NULL DEFAULT 0.00 CHECK (amount_paid >= 0),
+      amount_remaining  NUMERIC(14, 2)          NOT NULL DEFAULT 0.00 CHECK (amount_remaining >= 0),
+      due_date          DATE,
+      status            order_instalment_status NOT NULL DEFAULT 'pending',
+      notes             TEXT,
+      created_at        TIMESTAMPTZ             NOT NULL DEFAULT NOW(),
+      updated_at        TIMESTAMPTZ             NOT NULL DEFAULT NOW(),
+      UNIQUE (order_id, instalment_number),
+      CONSTRAINT order_instalment_paid_cap        CHECK (amount_paid <= amount_due),
+      CONSTRAINT order_instalment_remaining_check CHECK (amount_remaining = amount_due - amount_paid)
+    )
+  `;
+
+  // ── Order Payments (actual money sent to supplier, USD) ───────
+  await sql`
+    CREATE TABLE IF NOT EXISTS order_payments (
+      id             UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
+      order_id       UUID           NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
+      amount_usd     NUMERIC(14, 2) NOT NULL CHECK (amount_usd > 0),
+      payment_method payment_method NOT NULL,
+      reference      VARCHAR(255),
+      notes          TEXT,
+      paid_at        TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+      created_at     TIMESTAMPTZ    NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  // ── Order Payment Instalments (allocation junction) ───────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS order_payment_instalments (
+      id               UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
+      order_payment_id UUID           NOT NULL REFERENCES order_payments(id)    ON DELETE CASCADE,
+      instalment_id    UUID           NOT NULL REFERENCES order_instalments(id) ON DELETE RESTRICT,
+      amount_allocated NUMERIC(14, 2) NOT NULL CHECK (amount_allocated > 0),
+      UNIQUE (order_payment_id, instalment_id)
+    )
+  `;
+
+  // ── Expenses (EGP outflows) ───────────────────────────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS expenses (
+      id            UUID               PRIMARY KEY DEFAULT uuid_generate_v4(),
+      category      VARCHAR(100)       NOT NULL,
+      recurrence    expense_recurrence NOT NULL DEFAULT 'once',
+      amount_egp    NUMERIC(14, 2)     NOT NULL CHECK (amount_egp > 0),
+      description   TEXT,
+      expense_date  DATE               NOT NULL DEFAULT CURRENT_DATE,
+      next_due_date DATE,
+      is_active     BOOLEAN            NOT NULL DEFAULT TRUE,
+      created_at    TIMESTAMPTZ        NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  console.log("  ✓ Financial tables");
+
+  // ════════════════════════════════════════════════════════════
+  // INDEXES
+  // ════════════════════════════════════════════════════════════
+
+  // — Core —
+  await sql`CREATE INDEX IF NOT EXISTS idx_invoices_customer_id      ON invoices(customer_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_invoices_created_by       ON invoices(created_by)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_invoices_status           ON invoices(status)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice     ON invoice_items(invoice_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_invoice_items_product     ON invoice_items(product_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_installments_invoice      ON installments(invoice_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_installments_status       ON installments(status)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_installments_due_date     ON installments(due_date)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_payments_invoice          ON payments(invoice_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_pay_inst_payment          ON payment_installments(payment_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_pay_inst_installment      ON payment_installments(installment_id)`;
+
+  // — Financial —
+  await sql`CREATE INDEX IF NOT EXISTS idx_wallet_tx_reference        ON wallet_transactions(reference_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_wallet_tx_corrects         ON wallet_transactions(corrects_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_wallet_tx_created          ON wallet_transactions(created_at)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_orders_supplier            ON orders(supplier_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_order_instalments_order    ON order_instalments(order_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_order_payments_order       ON order_payments(order_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_order_pay_inst_payment     ON order_payment_instalments(order_payment_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_order_pay_inst_instalment  ON order_payment_instalments(instalment_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_expenses_date              ON expenses(expense_date)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_expenses_recurrence        ON expenses(recurrence)`;
+
+  console.log("  ✓ Indexes");
+
+  // ════════════════════════════════════════════════════════════
+  // FUNCTIONS & TRIGGERS
+  // ════════════════════════════════════════════════════════════
+
+  // ── updated_at helper ───────────────────────────────────────
   await sql`
     CREATE OR REPLACE FUNCTION set_updated_at()
     RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -189,7 +344,10 @@ async function schema() {
     $$
   `;
 
-  for (const table of ["users", "customers", "products", "invoices", "installments"]) {
+  for (const table of [
+    "users", "customers", "products", "invoices", "installments",
+    "suppliers", "orders", "order_instalments",
+  ]) {
     await sql.unsafe(`
       CREATE OR REPLACE TRIGGER trg_${table}_updated_at
         BEFORE UPDATE ON ${table}
@@ -197,7 +355,7 @@ async function schema() {
     `);
   }
 
-  // ── Default installment trigger ─────────────────────────────
+  // ── Default installment on invoice insert ────────────────────
   await sql`
     CREATE OR REPLACE FUNCTION create_default_installment()
     RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -207,19 +365,37 @@ async function schema() {
         amount_due, amount_paid, amount_remaining,
         due_date, status
       ) VALUES (
-        NEW.id, 1,
-        NEW.total, 0, NEW.total,
-        NEW.due_date, 'pending'
+        NEW.id, 1, NEW.total, 0, NEW.total, NEW.due_date, 'pending'
       );
       RETURN NEW;
     END;
     $$
   `;
-
   await sql`
     CREATE OR REPLACE TRIGGER trg_invoice_default_installment
       AFTER INSERT ON invoices
       FOR EACH ROW EXECUTE FUNCTION create_default_installment()
+  `;
+
+  // ── Default instalment on order insert ───────────────────────
+  await sql`
+    CREATE OR REPLACE FUNCTION create_default_order_instalment()
+    RETURNS TRIGGER LANGUAGE plpgsql AS $$
+    BEGIN
+      INSERT INTO order_instalments (
+        order_id, instalment_number,
+        amount_due, amount_paid, amount_remaining, status
+      ) VALUES (
+        NEW.id, 1, NEW.total_usd, 0, NEW.total_usd, 'pending'
+      );
+      RETURN NEW;
+    END;
+    $$
+  `;
+  await sql`
+    CREATE OR REPLACE TRIGGER trg_order_default_instalment
+      AFTER INSERT ON orders
+      FOR EACH ROW EXECUTE FUNCTION create_default_order_instalment()
   `;
 
   // ── installments_balanced helper ────────────────────────────
@@ -227,20 +403,40 @@ async function schema() {
     CREATE OR REPLACE FUNCTION installments_balanced(p_invoice_id UUID)
     RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
       SELECT COALESCE(SUM(amount_due), 0) = (SELECT total FROM invoices WHERE id = p_invoice_id)
-      FROM installments
-      WHERE invoice_id = p_invoice_id;
+      FROM installments WHERE invoice_id = p_invoice_id;
     $$
   `;
 
-  // Deduct stock when an item is inserted
+  await sql`
+  CREATE OR REPLACE FUNCTION sync_installment_status()
+  RETURNS TRIGGER LANGUAGE plpgsql AS $$
+  BEGIN
+    NEW.status = CASE
+      WHEN NEW.amount_remaining = 0
+        THEN 'paid'::payment_status
+      WHEN NEW.due_date < CURRENT_DATE AND NEW.amount_remaining > 0
+        THEN 'overdue'::payment_status
+      WHEN NEW.amount_paid > 0 AND NEW.amount_remaining > 0
+        THEN 'partial'::payment_status
+      ELSE 'pending'::payment_status
+    END;
+    RETURN NEW;
+  END;
+  $$
+`;
+await sql`
+  CREATE OR REPLACE TRIGGER trg_installment_sync_status
+    BEFORE UPDATE ON installments
+    FOR EACH ROW EXECUTE FUNCTION sync_installment_status()
+`;
+
+  // ── Stock: deduct on invoice_item insert ─────────────────────
   await sql`
     CREATE OR REPLACE FUNCTION update_stock_on_item_insert()
     RETURNS TRIGGER LANGUAGE plpgsql AS $$
     BEGIN
       IF NEW.product_id IS NOT NULL THEN
-        UPDATE products
-        SET stock_quantity = stock_quantity - NEW.quantity
-        WHERE id = NEW.product_id;
+        UPDATE products SET stock_quantity = stock_quantity - NEW.quantity WHERE id = NEW.product_id;
       END IF;
       RETURN NEW;
     END;
@@ -252,15 +448,13 @@ async function schema() {
       FOR EACH ROW EXECUTE FUNCTION update_stock_on_item_insert()
   `;
 
-  // Adjust stock when quantity changes on update
+  // ── Stock: adjust on invoice_item update ─────────────────────
   await sql`
     CREATE OR REPLACE FUNCTION update_stock_on_item_update()
     RETURNS TRIGGER LANGUAGE plpgsql AS $$
     BEGIN
       IF NEW.product_id IS NOT NULL AND NEW.quantity <> OLD.quantity THEN
-        UPDATE products
-        SET stock_quantity = stock_quantity - (NEW.quantity - OLD.quantity)
-        WHERE id = NEW.product_id;
+        UPDATE products SET stock_quantity = stock_quantity - (NEW.quantity - OLD.quantity) WHERE id = NEW.product_id;
       END IF;
       RETURN NEW;
     END;
@@ -272,15 +466,13 @@ async function schema() {
       FOR EACH ROW EXECUTE FUNCTION update_stock_on_item_update()
   `;
 
-  // Restore stock when an item is deleted
+  // ── Stock: restore on invoice_item delete ────────────────────
   await sql`
     CREATE OR REPLACE FUNCTION update_stock_on_item_delete()
     RETURNS TRIGGER LANGUAGE plpgsql AS $$
     BEGIN
       IF OLD.product_id IS NOT NULL THEN
-        UPDATE products
-        SET stock_quantity = stock_quantity + OLD.quantity
-        WHERE id = OLD.product_id;
+        UPDATE products SET stock_quantity = stock_quantity + OLD.quantity WHERE id = OLD.product_id;
       END IF;
       RETURN OLD;
     END;
@@ -292,6 +484,141 @@ async function schema() {
       FOR EACH ROW EXECUTE FUNCTION update_stock_on_item_delete()
   `;
 
+  // ── Wallet: invoice payments (EGP in on INSERT, EGP out on DELETE) ──
+  await sql`
+    CREATE OR REPLACE FUNCTION fn_payment_sync_wallet()
+    RETURNS TRIGGER LANGUAGE plpgsql AS $$
+    BEGIN
+      IF TG_OP = 'INSERT' THEN
+        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
+        VALUES ('EGP', NEW.amount, 'in', 'invoice_payment', NEW.id, NEW.paid_at);
+        UPDATE company_wallet SET egp_balance = egp_balance + NEW.amount, updated_at = NOW();
+      ELSIF TG_OP = 'DELETE' THEN
+        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
+        VALUES ('EGP', OLD.amount, 'out', 'invoice_payment', OLD.id, NOW());
+        UPDATE company_wallet SET egp_balance = egp_balance - OLD.amount, updated_at = NOW();
+      END IF;
+      RETURN NULL;
+    END;
+    $$
+  `;
+  await sql`DROP TRIGGER IF EXISTS trg_payment_sync_wallet ON payments`;
+  await sql`
+    CREATE TRIGGER trg_payment_sync_wallet
+      AFTER INSERT OR DELETE ON payments
+      FOR EACH ROW EXECUTE FUNCTION fn_payment_sync_wallet()
+  `;
+
+  // ── Wallet: currency conversions (EGP out + USD in) ──────────
+  await sql`
+    CREATE OR REPLACE FUNCTION fn_conversion_sync_wallet()
+    RETURNS TRIGGER LANGUAGE plpgsql AS $$
+    BEGIN
+      INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
+      VALUES ('EGP', NEW.egp_amount, 'out', 'conversion', NEW.id, NEW.converted_at);
+      INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
+      VALUES ('USD', NEW.usd_amount, 'in',  'conversion', NEW.id, NEW.converted_at);
+      UPDATE company_wallet
+      SET egp_balance = egp_balance - NEW.egp_amount,
+          usd_balance = usd_balance + NEW.usd_amount,
+          updated_at  = NOW();
+      RETURN NULL;
+    END;
+    $$
+  `;
+  await sql`DROP TRIGGER IF EXISTS trg_conversion_sync_wallet ON currency_conversions`;
+  await sql`
+    CREATE TRIGGER trg_conversion_sync_wallet
+      AFTER INSERT ON currency_conversions
+      FOR EACH ROW EXECUTE FUNCTION fn_conversion_sync_wallet()
+  `;
+
+  // ── Wallet: expenses (EGP out on INSERT) ─────────────────────
+  await sql`
+    CREATE OR REPLACE FUNCTION fn_expense_sync_wallet()
+    RETURNS TRIGGER LANGUAGE plpgsql AS $$
+    BEGIN
+      INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
+      VALUES ('EGP', NEW.amount_egp, 'out', 'expense', NEW.id, NOW());
+      UPDATE company_wallet SET egp_balance = egp_balance - NEW.amount_egp, updated_at = NOW();
+      RETURN NULL;
+    END;
+    $$
+  `;
+  await sql`DROP TRIGGER IF EXISTS trg_expense_sync_wallet ON expenses`;
+  await sql`
+    CREATE TRIGGER trg_expense_sync_wallet
+      AFTER INSERT ON expenses
+      FOR EACH ROW EXECUTE FUNCTION fn_expense_sync_wallet()
+  `;
+
+  // ── Wallet: order payments (USD out on INSERT, USD in on DELETE) ──
+  await sql`
+    CREATE OR REPLACE FUNCTION fn_order_payment_sync_wallet()
+    RETURNS TRIGGER LANGUAGE plpgsql AS $$
+    BEGIN
+      IF TG_OP = 'INSERT' THEN
+        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
+        VALUES ('USD', NEW.amount_usd, 'out', 'order_payment', NEW.id, NEW.paid_at);
+        UPDATE company_wallet SET usd_balance = usd_balance - NEW.amount_usd, updated_at = NOW();
+        UPDATE orders
+        SET paid_usd   = paid_usd + NEW.amount_usd,
+            status     = CASE
+                           WHEN paid_usd + NEW.amount_usd >= total_usd THEN 'paid'::order_status
+                           WHEN paid_usd + NEW.amount_usd  > 0         THEN 'partial'::order_status
+                           ELSE 'pending'::order_status
+                         END,
+            updated_at = NOW()
+        WHERE id = NEW.order_id;
+      ELSIF TG_OP = 'DELETE' THEN
+        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
+        VALUES ('USD', OLD.amount_usd, 'in', 'order_payment', OLD.id, NOW());
+        UPDATE company_wallet SET usd_balance = usd_balance + OLD.amount_usd, updated_at = NOW();
+        UPDATE orders
+        SET paid_usd   = paid_usd - OLD.amount_usd,
+            status     = CASE
+                           WHEN paid_usd - OLD.amount_usd >= total_usd THEN 'paid'::order_status
+                           WHEN paid_usd - OLD.amount_usd  > 0         THEN 'partial'::order_status
+                           ELSE 'pending'::order_status
+                         END,
+            updated_at = NOW()
+        WHERE id = OLD.order_id;
+      END IF;
+      RETURN NULL;
+    END;
+    $$
+  `;
+  await sql`DROP TRIGGER IF EXISTS trg_order_payment_sync_wallet ON order_payments`;
+  await sql`
+    CREATE TRIGGER trg_order_payment_sync_wallet
+      AFTER INSERT OR DELETE ON order_payments
+      FOR EACH ROW EXECUTE FUNCTION fn_order_payment_sync_wallet()
+  `;
+// ── Order instalment status sync (paid/overdue/partial) ───────
+   await sql`
+    CREATE OR REPLACE FUNCTION sync_order_instalment_status()
+    RETURNS TRIGGER LANGUAGE plpgsql AS $$
+    BEGIN
+      NEW.status = CASE
+        WHEN NEW.amount_remaining = 0
+          THEN 'paid'::order_instalment_status
+        WHEN NEW.due_date < CURRENT_DATE AND NEW.amount_remaining > 0
+          THEN 'overdue'::order_instalment_status
+        WHEN NEW.amount_paid > 0 AND NEW.amount_remaining > 0
+          THEN 'partial'::order_instalment_status
+        ELSE 'pending'::order_instalment_status
+      END;
+      RETURN NEW;
+    END;
+    $$
+  `;
+  await sql`
+    CREATE OR REPLACE TRIGGER trg_order_instalment_sync_status
+      BEFORE UPDATE ON order_instalments
+      FOR EACH ROW EXECUTE FUNCTION sync_order_instalment_status()
+  `;
+
+  console.log("  ✓ Functions & triggers");
   console.log("✅  Schema created.");
   await sql.end();
 }

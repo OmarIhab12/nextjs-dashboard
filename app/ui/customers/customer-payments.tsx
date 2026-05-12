@@ -6,13 +6,13 @@ import { addCustomerPaymentAction } from '@/app/lib/actions/customers';
 import type { CustomerPaymentSummary } from '@/app/lib/db/customers';
 import { TableContainer, TableRows, TableEmpty } from '@/app/ui/table-components';
 
-type PaymentMethod = 'bank_transfer' | 'cash' | 'card' | 'check' | 'other';
+type PaymentMethod = 'bank_transfer' | 'cash' | 'card' | 'vodafone_cash' | 'other';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'bank_transfer', label: 'Bank Transfer' },
   { value: 'cash',          label: 'Cash'          },
   { value: 'card',          label: 'Card'          },
-  { value: 'check',         label: 'Check'         },
+  { value: 'vodafone_cash', label: 'Vodafone Cash' },
   { value: 'other',         label: 'Other'         },
 ];
 
@@ -131,7 +131,7 @@ export default function CustomerPayments({
               type="text"
               value={reference}
               onChange={(e) => setReference(e.target.value)}
-              placeholder="Bank transfer ID, check number…"
+              placeholder="Bank transfer ID, vodafone_cash number…"
               className="block w-full rounded-md border border-gray-200 py-1.5 px-2 text-sm outline-none focus:border-gray-400"
             />
           </div>
@@ -168,7 +168,7 @@ export default function CustomerPayments({
         <TableRows>
           {payments.length === 0 && <TableEmpty message="No payments yet." />}
           {payments.map((p) => (
-            <div className={`grid ${COLS} items-center gap-2 px-3 py-2 hover:bg-gray-50/50 transition-colors`}>
+            <div key={p.id} className={`grid ${COLS} items-center gap-2 px-3 py-2 hover:bg-gray-50/50 transition-colors`}>
                 <span className="text-sm text-gray-500">{fmtDate(p.paid_at)}</span>
                 <span className="text-sm text-gray-500 capitalize">
                     {p.payment_method?.replace('_', ' ') ?? '—'}
