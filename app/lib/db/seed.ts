@@ -207,10 +207,10 @@ async function seed() {
   // ════════════════════════════════════════════════════════════
   console.log("  → orders & order_instalments");
 
-  // Order 1 — TechParts, 3 instalments, first one paid
+  // Order 1 — TechParts, arrived, 3 instalments, first one paid, second overdue
   const [order1] = await sql<{ id: string }[]>`
-    INSERT INTO orders (supplier_id, total_usd, notes, order_date)
-    VALUES (${techSupplier.id}, 8500.00, 'Q1 laptop batch — 10 units', ${daysFromNow(-45)})
+    INSERT INTO orders (supplier_id, total_usd, status, notes, order_date)
+    VALUES (${techSupplier.id}, 8500.00, 'arrived', 'Q1 laptop batch — 10 units', ${daysFromNow(-45)})
     RETURNING id
   `;
 
@@ -220,15 +220,16 @@ async function seed() {
     INSERT INTO order_instalments
       (order_id, instalment_number, amount_due, amount_paid, amount_remaining, due_date, status)
     VALUES
-      (${order1.id}, 1, 3000.00, 0, 3000.00, ${daysFromNow(-30)}, 'pending'),
-      (${order1.id}, 2, 3000.00, 0, 3000.00, ${daysFromNow(0)},   'pending'),
-      (${order1.id}, 3, 2500.00, 0, 2500.00, ${daysFromNow(30)},  'pending')
+      (${order1.id}, 1, 3000.00, 3000.00, 0.00,    ${daysFromNow(-30)}, 'paid'),
+      (${order1.id}, 2, 3000.00, 0,       3000.00,  ${daysFromNow(-10)}, 'overdue'),
+      (${order1.id}, 3, 2500.00, 0,       2500.00,  ${daysFromNow(30)},  'pending')
   `;
 
-  // Order 2 — EuroComponents, pending (no payments yet)
-  await sql`
-    INSERT INTO orders (supplier_id, total_usd, notes, order_date)
-    VALUES (${euroSupplier.id}, 3200.00, 'Monitor batch — 8 units', ${daysFromNow(-10)})
+  // Order 2 — EuroComponents, confirmed, single instalment pending
+  const [order2] = await sql<{ id: string }[]>`
+    INSERT INTO orders (supplier_id, total_usd, status, notes, order_date)
+    VALUES (${euroSupplier.id}, 3200.00, 'confirmed', 'Monitor batch — 8 units', ${daysFromNow(-10)})
+    RETURNING id
   `;
 
   // ════════════════════════════════════════════════════════════
@@ -241,6 +242,7 @@ async function seed() {
     WHERE order_id = ${order1.id} AND instalment_number = 1
   `;
 
+  // Payment for instalment 1 (fully paid)
   const [orderPayment1] = await sql<{ id: string }[]>`
     INSERT INTO order_payments (order_id, amount_usd, payment_method, reference, paid_at)
     VALUES (${order1.id}, 3000.00, 'bank_transfer', 'WIRE-2024-001', ${daysFromNow(-28)})
@@ -250,12 +252,6 @@ async function seed() {
   await sql`
     INSERT INTO order_payment_instalments (order_payment_id, instalment_id, amount_allocated)
     VALUES (${orderPayment1.id}, ${o1Inst1.id}, 3000.00)
-  `;
-
-  await sql`
-    UPDATE order_instalments
-    SET amount_paid = 3000.00, amount_remaining = 0.00, status = 'paid'
-    WHERE id = ${o1Inst1.id}
   `;
 
   // ════════════════════════════════════════════════════════════

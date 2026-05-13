@@ -4,31 +4,35 @@ import sql from "@/app/lib/db";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+// Document lifecycle — stored on the orders table, set manually by users
+export type OrderStatus =
+  | "pending"
+  | "confirmed"
+  | "shipped"
+  | "arrived"
+  | "stored"
+  | "cancelled";
+
+// Payment state — computed from order_instalment_status values, never stored
+// Reuses the same values as order_instalment_status for consistency
+export type OrderPaymentStatus = "pending" | "partial" | "paid" | "overdue";
+
+// Raw DB row
 export type Order = {
-  id:            string;
-  supplier_id:   string | null;
-  total_usd:     string;
-  paid_usd:      string;
-  status:        "pending" | "partial" | "paid";
-  notes:         string | null;
-  order_date:    string;
-  updated_at:    string;
-  // joined
+  id:           string;
+  supplier_id:  string | null;
+  total_usd:    string;
+  status:       OrderStatus;
+  notes:        string | null;
+  order_date:   string;
+  updated_at:   string;
   supplier_name?: string;
 };
 
-export type OrderInstalment = {
-  id:                string;
-  order_id:          string;
-  instalment_number: number;
-  amount_due:        string;
-  amount_paid:       string;
-  amount_remaining:  string;
-  due_date:          string | null;
-  status:            "pending" | "paid" | "overdue";
-  notes:             string | null;
-  created_at:        string;
-  updated_at:        string;
+// Enriched with computed payment_status and paid_usd from instalments
+export type OrderWithPaymentStatus = Order & {
+  paid_usd:       number;
+  payment_status: OrderPaymentStatus;
 };
 
 export type CreateOrderInput = {
@@ -38,49 +42,115 @@ export type CreateOrderInput = {
   order_date?:  Date;
 };
 
-// ── Order Queries ─────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-export async function getAllOrders(): Promise<Order[]> {
-  return sql<Order[]>`
-    SELECT o.*, s.name AS supplier_name
-    FROM orders o
-    LEFT JOIN suppliers s ON s.id = o.supplier_id
-    ORDER BY o.order_date DESC
-  `;
+function derivePaymentStatus(
+  totalUsd:    number,
+  paidUsd:     number,
+  hasOverdue:  boolean,
+): OrderPaymentStatus {
+  if (paidUsd >= totalUsd)          return 'paid';
+  if (hasOverdue)                    return 'overdue';
+  if (paidUsd > 0)                   return 'partial';
+  return 'pending';
 }
 
-export async function getOrderById(id: string): Promise<Order | null> {
-  const [row] = await sql<Order[]>`
-    SELECT o.*, s.name AS supplier_name
+// ── Order Queries ─────────────────────────────────────────────────────────────
+
+/**
+ * Returns all orders enriched with paid_usd and payment_status
+ * computed from order_instalments in a single query.
+ */
+export async function getAllOrders(): Promise<OrderWithPaymentStatus[]> {
+  const rows = await sql<(Order & { paid_usd: string; has_overdue: boolean })[]>`
+    SELECT
+      o.*,
+      s.name                                          AS supplier_name,
+      COALESCE(SUM(oi.amount_paid), 0)                AS paid_usd,
+      BOOL_OR(oi.status = 'overdue')                  AS has_overdue
     FROM orders o
-    LEFT JOIN suppliers s ON s.id = o.supplier_id
-    WHERE o.id = ${id}
+    LEFT JOIN suppliers s          ON s.id       = o.supplier_id
+    LEFT JOIN order_instalments oi ON oi.order_id = o.id
+    GROUP BY o.id, s.name
+    ORDER BY o.order_date DESC
   `;
-  return row ?? null;
+
+  return rows.map((r) => ({
+    ...r,
+    paid_usd:       Number(r.paid_usd),
+    payment_status: derivePaymentStatus(
+      Number(r.total_usd),
+      Number(r.paid_usd),
+      r.has_overdue,
+    ),
+  }));
+}
+
+export async function getOrderById(id: string): Promise<OrderWithPaymentStatus | null> {
+  const [row] = await sql<(Order & { paid_usd: string; has_overdue: boolean })[]>`
+    SELECT
+      o.*,
+      s.name                                          AS supplier_name,
+      COALESCE(SUM(oi.amount_paid), 0)                AS paid_usd,
+      BOOL_OR(oi.status = 'overdue')                  AS has_overdue
+    FROM orders o
+    LEFT JOIN suppliers s          ON s.id       = o.supplier_id
+    LEFT JOIN order_instalments oi ON oi.order_id = o.id
+    WHERE o.id = ${id}
+    GROUP BY o.id, s.name
+  `;
+  if (!row) return null;
+
+  return {
+    ...row,
+    paid_usd:       Number(row.paid_usd),
+    payment_status: derivePaymentStatus(
+      Number(row.total_usd),
+      Number(row.paid_usd),
+      row.has_overdue,
+    ),
+  };
 }
 
 export async function fetchFilteredOrders(
   query:   string,
   page:    number,
   perPage = 10,
-): Promise<Order[]> {
+): Promise<OrderWithPaymentStatus[]> {
   const offset = (page - 1) * perPage;
-  return sql<Order[]>`
-    SELECT o.*, s.name AS supplier_name
+
+  const rows = await sql<(Order & { paid_usd: string; has_overdue: boolean })[]>`
+    SELECT
+      o.*,
+      s.name                                          AS supplier_name,
+      COALESCE(SUM(oi.amount_paid), 0)                AS paid_usd,
+      BOOL_OR(oi.status = 'overdue')                  AS has_overdue
     FROM orders o
-    LEFT JOIN suppliers s ON s.id = o.supplier_id
+    LEFT JOIN suppliers s          ON s.id       = o.supplier_id
+    LEFT JOIN order_instalments oi ON oi.order_id = o.id
     WHERE
       s.name         ILIKE ${'%' + query + '%'} OR
       o.notes        ILIKE ${'%' + query + '%'} OR
       o.status::text ILIKE ${'%' + query + '%'}
+    GROUP BY o.id, s.name
     ORDER BY o.order_date DESC
     LIMIT ${perPage} OFFSET ${offset}
   `;
+
+  return rows.map((r) => ({
+    ...r,
+    paid_usd:       Number(r.paid_usd),
+    payment_status: derivePaymentStatus(
+      Number(r.total_usd),
+      Number(r.paid_usd),
+      r.has_overdue,
+    ),
+  }));
 }
 
 export async function getOrderCount(query = ''): Promise<number> {
   const [row] = await sql<{ count: string }[]>`
-    SELECT COUNT(o.*)::text AS count
+    SELECT COUNT(DISTINCT o.id)::text AS count
     FROM orders o
     LEFT JOIN suppliers s ON s.id = o.supplier_id
     WHERE
@@ -97,7 +167,7 @@ export async function getOrderCount(query = ''): Promise<number> {
  * Creates an order.
  * DB trigger automatically creates a single default instalment for the full amount.
  */
-export async function createOrder(input: CreateOrderInput): Promise<Order> {
+export async function createOrder(input: CreateOrderInput): Promise<OrderWithPaymentStatus> {
   const [row] = await sql<Order[]>`
     INSERT INTO orders (supplier_id, total_usd, notes, order_date)
     VALUES (
@@ -108,30 +178,63 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     )
     RETURNING *
   `;
-  return row;
+
+  return {
+    ...row,
+    paid_usd:       0,
+    payment_status: 'pending',
+  };
+}
+
+/**
+ * Updates the document lifecycle status of an order.
+ * This is the only writable status — payment_status is always computed.
+ */
+export async function updateOrderStatus(
+  id:     string,
+  status: OrderStatus,
+): Promise<void> {
+  await sql`
+    UPDATE orders SET status = ${status}::order_status WHERE id = ${id}
+  `;
 }
 
 export async function updateOrder(
   id:    string,
-  input: Partial<Pick<CreateOrderInput, 'supplier_id' | 'notes'>>,
-): Promise<Order> {
-  const [row] = await sql<Order[]>`
+  input: Partial<Pick<CreateOrderInput, 'supplier_id' | 'notes'>> & { status?: OrderStatus },
+): Promise<OrderWithPaymentStatus> {
+  await sql`
     UPDATE orders SET
       supplier_id = COALESCE(${input.supplier_id ?? null}, supplier_id),
-      notes       = COALESCE(${input.notes       ?? null}, notes)
+      notes       = COALESCE(${input.notes       ?? null}, notes),
+      status      = COALESCE(${input.status      ?? null}::order_status, status)
     WHERE id = ${id}
-    RETURNING *
   `;
-  return row;
+  const updated = await getOrderById(id);
+  if (!updated) throw new Error(`Order ${id} not found after update`);
+  return updated;
 }
 
 export async function deleteOrder(id: string): Promise<void> {
-  // Clear payments first (restricted FK), instalments cascade automatically
   await sql`DELETE FROM order_payments WHERE order_id = ${id}`;
   await sql`DELETE FROM orders WHERE id = ${id}`;
 }
 
 // ── Instalment Queries ────────────────────────────────────────────────────────
+
+export type OrderInstalment = {
+  id:                string;
+  order_id:          string;
+  instalment_number: number;
+  amount_due:        string;
+  amount_paid:       string;
+  amount_remaining:  string;
+  due_date:          string | null;
+  status:            "pending" | "partial" | "paid" | "overdue";
+  notes:             string | null;
+  created_at:        string;
+  updated_at:        string;
+};
 
 export async function getInstalmentsByOrder(orderId: string): Promise<OrderInstalment[]> {
   return sql<OrderInstalment[]>`
@@ -147,72 +250,3 @@ export async function getInstalmentById(id: string): Promise<OrderInstalment | n
   `;
   return row ?? null;
 }
-
-// ── Instalment Mutations ──────────────────────────────────────────────────────
-
-/**
- * Splits an existing instalment into two:
- *   - The original shrinks to `firstAmount`
- *   - A new instalment is appended for the remainder
- * Mirrors the invoice splitInstallment pattern exactly.
- */
-export async function splitOrderInstalment(
-  instalmentId: string,
-  firstAmount:  number,
-  firstDueDate?: Date,
-): Promise<void> {
-  const inst = await getInstalmentById(instalmentId);
-  if (!inst) throw new Error("Instalment not found");
-
-  const remainder = Number(inst.amount_due) - firstAmount;
-  if (remainder <= 0) throw new Error("Split amount must be less than amount_due");
-
-  // Shift subsequent instalment numbers up to make room
-  await sql`
-    UPDATE order_instalments
-    SET instalment_number = instalment_number + 1
-    WHERE order_id = ${inst.order_id}
-      AND instalment_number > ${inst.instalment_number}
-  `;
-
-  // Shrink the original
-  await sql`
-    UPDATE order_instalments
-    SET amount_due       = ${firstAmount.toFixed(2)}::numeric,
-        amount_remaining = ${firstAmount.toFixed(2)}::numeric,
-        due_date         = ${firstDueDate ?? inst.due_date ?? null}
-    WHERE id = ${instalmentId}
-  `;
-
-  // Create the remainder instalment
-  await sql`
-    INSERT INTO order_instalments
-      (order_id, instalment_number, amount_due, amount_paid, amount_remaining, status)
-    VALUES (
-      ${inst.order_id},
-      ${inst.instalment_number + 1},
-      ${remainder.toFixed(2)}::numeric,
-      0.00,
-      ${remainder.toFixed(2)}::numeric,
-      'pending'
-    )
-  `;
-}
-
-/**
- * Syncs instalment statuses based on payment state and due dates.
- * Call after any payment create/update/delete on an order.
- */
-// export async function syncOrderInstalmentStatuses(orderId: string): Promise<void> {
-//   await sql`
-//     UPDATE order_instalments
-//     SET status = CASE
-//       WHEN amount_remaining = 0
-//         THEN 'paid'::order_instalment_status
-//       WHEN due_date < CURRENT_DATE AND amount_remaining > 0
-//         THEN 'overdue'::order_instalment_status
-//       ELSE 'pending'::order_instalment_status
-//     END
-//     WHERE order_id = ${orderId}
-//   `;
-// }

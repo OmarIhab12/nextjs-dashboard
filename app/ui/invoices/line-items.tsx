@@ -121,7 +121,7 @@ export default function LineItems({
         <button
           type="button"
           onClick={addItem}
-          className="flex items-center gap-1 rounded-md bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 transition-colors"
+          className="btn-Thirdary"
         >
           <PlusIcon className="h-3.5 w-3.5" />
           Add product

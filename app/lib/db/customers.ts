@@ -29,6 +29,7 @@ export type CustomerInvoiceSummary = {
   created_at: Date;
   due_date: Date | null;
   total: string;
+  paid: number;
   payment_status: 'pending' | 'partial' | 'paid' | 'overdue';
 };
  
@@ -175,6 +176,7 @@ export async function getCustomerPageData(
       invoices.created_at,
       invoices.due_date,
       invoices.total,
+      (SELECT SUM(amount_paid) FROM installments WHERE invoice_id = invoices.id) AS paid,
       CASE
         WHEN SUM(installments.amount_due) = SUM(installments.amount_paid)
           THEN 'paid'

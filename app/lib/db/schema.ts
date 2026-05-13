@@ -15,14 +15,14 @@ async function schema() {
   await sql`DO $$ BEGIN CREATE TYPE invoice_status     AS ENUM ('draft', 'confirmed', 'cancelled', 'shipped');      EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE discount_type      AS ENUM ('percentage', 'amount');                            EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE payment_status     AS ENUM ('pending', 'partial', 'paid', 'overdue');           EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
-  await sql`DO $$ BEGIN CREATE TYPE payment_method     AS ENUM ('bank_transfer', 'cash', 'card', 'vodafone_cash', 'other'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE payment_method     AS ENUM ('bank_transfer', 'cash', 'card', 'check', 'other'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
 
   // — Financial —
   await sql`DO $$ BEGIN CREATE TYPE wallet_currency        AS ENUM ('EGP', 'USD');                                              EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE wallet_direction       AS ENUM ('in', 'out');                                               EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE wallet_reason          AS ENUM ('conversion', 'expense', 'order_payment', 'invoice_payment'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
-  await sql`DO $$ BEGIN CREATE TYPE order_status           AS ENUM ('pending', 'partial', 'paid');                              EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
-  await sql`DO $$ BEGIN CREATE TYPE order_instalment_status AS ENUM ('pending', 'partial', 'paid', 'overdue');                             EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE order_status           AS ENUM ('pending', 'confirmed', 'shipped', 'arrived', 'stored', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE order_instalment_status AS ENUM ('pending', 'partial', 'paid', 'overdue');                            EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE expense_recurrence     AS ENUM ('once', 'monthly');                                         EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
 
   console.log("  ✓ Enums");
@@ -43,7 +43,6 @@ async function schema() {
     )
   `;
 
-  // ── Customers ───────────────────────────────────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS customers (
       id         UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -59,7 +58,6 @@ async function schema() {
     )
   `;
 
-  // ── Products ────────────────────────────────────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS products (
       id             UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -74,7 +72,6 @@ async function schema() {
     )
   `;
 
-  // ── Invoices ────────────────────────────────────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS invoices (
       id              UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -97,7 +94,6 @@ async function schema() {
     )
   `;
 
-  // ── Invoice Items ───────────────────────────────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS invoice_items (
       id           UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -111,7 +107,6 @@ async function schema() {
     )
   `;
 
-  // ── Installments ────────────────────────────────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS installments (
       id                 UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -131,7 +126,6 @@ async function schema() {
     )
   `;
 
-  // ── Payments ────────────────────────────────────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS payments (
       id             UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -145,7 +139,6 @@ async function schema() {
     )
   `;
 
-  // ── Payment Installments ────────────────────────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS payment_installments (
       id               UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -228,7 +221,6 @@ async function schema() {
       id          UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
       supplier_id UUID           REFERENCES suppliers(id) ON DELETE SET NULL,
       total_usd   NUMERIC(14, 2) NOT NULL CHECK (total_usd > 0),
-      paid_usd    NUMERIC(14, 2) NOT NULL DEFAULT 0.00 CHECK (paid_usd >= 0),
       status      order_status   NOT NULL DEFAULT 'pending',
       notes       TEXT,
       order_date  TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
@@ -407,29 +399,6 @@ async function schema() {
     $$
   `;
 
-  await sql`
-  CREATE OR REPLACE FUNCTION sync_installment_status()
-  RETURNS TRIGGER LANGUAGE plpgsql AS $$
-  BEGIN
-    NEW.status = CASE
-      WHEN NEW.amount_remaining = 0
-        THEN 'paid'::payment_status
-      WHEN NEW.due_date < CURRENT_DATE AND NEW.amount_remaining > 0
-        THEN 'overdue'::payment_status
-      WHEN NEW.amount_paid > 0 AND NEW.amount_remaining > 0
-        THEN 'partial'::payment_status
-      ELSE 'pending'::payment_status
-    END;
-    RETURN NEW;
-  END;
-  $$
-`;
-await sql`
-  CREATE OR REPLACE TRIGGER trg_installment_sync_status
-    BEFORE UPDATE ON installments
-    FOR EACH ROW EXECUTE FUNCTION sync_installment_status()
-`;
-
   // ── Stock: deduct on invoice_item insert ─────────────────────
   await sql`
     CREATE OR REPLACE FUNCTION update_stock_on_item_insert()
@@ -561,28 +530,10 @@ await sql`
         INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
         VALUES ('USD', NEW.amount_usd, 'out', 'order_payment', NEW.id, NEW.paid_at);
         UPDATE company_wallet SET usd_balance = usd_balance - NEW.amount_usd, updated_at = NOW();
-        UPDATE orders
-        SET paid_usd   = paid_usd + NEW.amount_usd,
-            status     = CASE
-                           WHEN paid_usd + NEW.amount_usd >= total_usd THEN 'paid'::order_status
-                           WHEN paid_usd + NEW.amount_usd  > 0         THEN 'partial'::order_status
-                           ELSE 'pending'::order_status
-                         END,
-            updated_at = NOW()
-        WHERE id = NEW.order_id;
       ELSIF TG_OP = 'DELETE' THEN
         INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
         VALUES ('USD', OLD.amount_usd, 'in', 'order_payment', OLD.id, NOW());
         UPDATE company_wallet SET usd_balance = usd_balance + OLD.amount_usd, updated_at = NOW();
-        UPDATE orders
-        SET paid_usd   = paid_usd - OLD.amount_usd,
-            status     = CASE
-                           WHEN paid_usd - OLD.amount_usd >= total_usd THEN 'paid'::order_status
-                           WHEN paid_usd - OLD.amount_usd  > 0         THEN 'partial'::order_status
-                           ELSE 'pending'::order_status
-                         END,
-            updated_at = NOW()
-        WHERE id = OLD.order_id;
       END IF;
       RETURN NULL;
     END;
@@ -593,29 +544,6 @@ await sql`
     CREATE TRIGGER trg_order_payment_sync_wallet
       AFTER INSERT OR DELETE ON order_payments
       FOR EACH ROW EXECUTE FUNCTION fn_order_payment_sync_wallet()
-  `;
-// ── Order instalment status sync (paid/overdue/partial) ───────
-   await sql`
-    CREATE OR REPLACE FUNCTION sync_order_instalment_status()
-    RETURNS TRIGGER LANGUAGE plpgsql AS $$
-    BEGIN
-      NEW.status = CASE
-        WHEN NEW.amount_remaining = 0
-          THEN 'paid'::order_instalment_status
-        WHEN NEW.due_date < CURRENT_DATE AND NEW.amount_remaining > 0
-          THEN 'overdue'::order_instalment_status
-        WHEN NEW.amount_paid > 0 AND NEW.amount_remaining > 0
-          THEN 'partial'::order_instalment_status
-        ELSE 'pending'::order_instalment_status
-      END;
-      RETURN NEW;
-    END;
-    $$
-  `;
-  await sql`
-    CREATE OR REPLACE TRIGGER trg_order_instalment_sync_status
-      BEFORE UPDATE ON order_instalments
-      FOR EACH ROW EXECUTE FUNCTION sync_order_instalment_status()
   `;
 
   console.log("  ✓ Functions & triggers");

@@ -25,8 +25,6 @@ async function drop() {
   await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_insert         ON invoice_items`;
   await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_update         ON invoice_items`;
   await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_delete         ON invoice_items`;
-  await sql`DROP TRIGGER IF EXISTS trg_installment_sync_status      ON installments`;
-  await sql`DROP TRIGGER IF EXISTS trg_order_instalment_sync_status ON order_instalments`;
 
   // ── Functions ────────────────────────────────────────────────
   await sql`DROP FUNCTION IF EXISTS fn_order_payment_sync_wallet()`;
@@ -40,8 +38,6 @@ async function drop() {
   await sql`DROP FUNCTION IF EXISTS update_stock_on_item_update()`;
   await sql`DROP FUNCTION IF EXISTS update_stock_on_item_delete()`;
   await sql`DROP FUNCTION IF EXISTS set_updated_at()`;
-  await sql`DROP FUNCTION IF EXISTS sync_installment_status()`;
-  await sql`DROP FUNCTION IF EXISTS sync_order_instalment_status()`;
 
   // ── Tables — dependants before parents ───────────────────────
 

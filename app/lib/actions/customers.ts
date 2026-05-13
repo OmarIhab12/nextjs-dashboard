@@ -4,12 +4,26 @@ import { addPaymentForCustomer, createCustomer, updateCustomer } from '@/app/lib
 import type { CreateCustomerInput, UpdateCustomerInput } from '@/app/lib/db/customers';
 import { revalidatePath } from 'next/cache';
 
-export async function createCustomerAction(input: CreateCustomerInput) {
-  return await createCustomer(input);
+export async function createCustomerAction(
+  input: CreateCustomerInput,
+): Promise<{ error: string | null }> {
+  try {
+    await createCustomer(input);
+    revalidatePath('/dashboard/customers');
+    return { error: null };
+  } catch {
+    return { error: 'Failed to create customer.' };
+  }
 }
 
 export async function updateCustomerAction(id: string, input: UpdateCustomerInput) {
-  return await updateCustomer(id, input);
+  try {
+      await updateCustomer(id, input);
+      revalidatePath('/dashboard/customers');
+      return { error: null };
+    } catch {
+      return { error: 'Failed to update customer.' };
+    }
 }
 
 export async function addCustomerPaymentAction(
