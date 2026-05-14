@@ -56,7 +56,7 @@ export function DownloadPDFButton({ invoiceId, iconOnly = false }: Props) {
       <button
         onClick={handleDownload}
         disabled={loading}
-        title="تحميل PDF"
+        title="PDF"
         className="rounded-md border border-gray-200 p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
       >
         <ArrowDownTrayIcon className="h-4 w-4" />
