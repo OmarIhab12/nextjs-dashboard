@@ -8,12 +8,13 @@ import { PlusIcon } from '@heroicons/react/24/outline';
 import { TableContainer, TableRows, TableEmpty } from '@/app/ui/table-components';
 import { fmt, fmtDate } from '@/app/ui/shared/transaction-list';
 
-export type PaymentMethod = 'bank_transfer' | 'cash' | 'card' | 'vodafone_cash' | 'other';
+export type PaymentMethod = 'bank_transfer' | 'cash' | 'card' | 'check' | 'vodafone_cash' | 'other';
 
 export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'bank_transfer', label: 'Bank Transfer' },
   { value: 'cash',          label: 'Cash'          },
   { value: 'card',          label: 'Card'          },
+  { value: 'check',         label: 'Check'         },
   { value: 'vodafone_cash', label: 'Vodafone Cash' },
   { value: 'other',         label: 'Other'         },
 ];

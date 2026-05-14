@@ -15,7 +15,7 @@ async function schema() {
   await sql`DO $$ BEGIN CREATE TYPE invoice_status     AS ENUM ('draft', 'confirmed', 'shipped');      EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE discount_type      AS ENUM ('percentage', 'amount');                            EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE payment_status     AS ENUM ('pending', 'partial', 'paid', 'overdue');           EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
-  await sql`DO $$ BEGIN CREATE TYPE payment_method     AS ENUM ('bank_transfer', 'cash', 'card', 'check', 'other'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE payment_method     AS ENUM ('bank_transfer', 'cash', 'card', 'check', 'vodafone_cash', 'other'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
 
   // — Financial —
   await sql`DO $$ BEGIN CREATE TYPE wallet_currency        AS ENUM ('EGP', 'USD');                                              EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
@@ -194,6 +194,9 @@ async function schema() {
       egp_amount    NUMERIC(14, 2) NOT NULL CHECK (egp_amount > 0),
       usd_amount    NUMERIC(14, 2) NOT NULL CHECK (usd_amount > 0),
       exchange_rate NUMERIC(10, 4) NOT NULL CHECK (exchange_rate > 0),
+      -- 'egp_to_usd': spending EGP to buy USD (EGP out, USD in)
+      -- 'usd_to_egp': spending USD to buy EGP (USD out, EGP in)
+      direction     TEXT           NOT NULL DEFAULT 'egp_to_usd' CHECK (direction IN ('egp_to_usd', 'usd_to_egp')),
       notes         TEXT,
       converted_at  TIMESTAMPTZ    NOT NULL DEFAULT NOW()
     )
@@ -586,14 +589,27 @@ async function schema() {
     CREATE OR REPLACE FUNCTION fn_conversion_sync_wallet()
     RETURNS TRIGGER LANGUAGE plpgsql AS $$
     BEGIN
-      INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
-      VALUES ('EGP', NEW.egp_amount, 'out', 'conversion', NEW.id, NEW.converted_at);
-      INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
-      VALUES ('USD', NEW.usd_amount, 'in',  'conversion', NEW.id, NEW.converted_at);
-      UPDATE company_wallet
-      SET egp_balance = egp_balance - NEW.egp_amount,
-          usd_balance = usd_balance + NEW.usd_amount,
-          updated_at  = NOW();
+      IF NEW.direction = 'egp_to_usd' THEN
+        -- Spending EGP to buy USD
+        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
+        VALUES ('EGP', NEW.egp_amount, 'out', 'conversion', NEW.id, NEW.converted_at);
+        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
+        VALUES ('USD', NEW.usd_amount, 'in',  'conversion', NEW.id, NEW.converted_at);
+        UPDATE company_wallet
+        SET egp_balance = egp_balance - NEW.egp_amount,
+            usd_balance = usd_balance + NEW.usd_amount,
+            updated_at  = NOW();
+      ELSE
+        -- Spending USD to buy EGP
+        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
+        VALUES ('USD', NEW.usd_amount, 'out', 'conversion', NEW.id, NEW.converted_at);
+        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_at)
+        VALUES ('EGP', NEW.egp_amount, 'in',  'conversion', NEW.id, NEW.converted_at);
+        UPDATE company_wallet
+        SET usd_balance = usd_balance - NEW.usd_amount,
+            egp_balance = egp_balance + NEW.egp_amount,
+            updated_at  = NOW();
+      END IF;
       RETURN NULL;
     END;
     $$

@@ -9,6 +9,7 @@ export type CurrencyConversion = {
   egp_amount:    string;
   usd_amount:    string;
   exchange_rate: string;
+  direction:     'egp_to_usd' | 'usd_to_egp';
   notes:         string | null;
   converted_at:  string;
 };
@@ -17,6 +18,7 @@ export type CreateConversionInput = {
   egp_amount:    number;
   usd_amount:    number;
   exchange_rate: number;
+  direction:     'egp_to_usd' | 'usd_to_egp';
   notes?:        string;
   converted_at?: Date;
 };
@@ -88,24 +90,25 @@ export async function getConversionSummary(): Promise<{
 // ── Mutations ─────────────────────────────────────────────────────────────────
 
 /**
- * Records a currency conversion (EGP → USD).
+ * Records a currency conversion in either direction.
  * DB trigger (trg_conversion_sync_wallet) fires on INSERT and automatically:
- *  - writes two wallet_transactions (EGP out, USD in)
- *  - decrements egp_balance and increments usd_balance on company_wallet
+ *  - egp_to_usd: EGP out + USD in, decrements egp_balance, increments usd_balance
+ *  - usd_to_egp: USD out + EGP in, decrements usd_balance, increments egp_balance
  *
  * Conversions are immutable — no update or delete functions are provided.
  * If a conversion was entered incorrectly, record a correcting conversion
- * in the opposite direction (USD → EGP) to reverse the effect.
+ * in the opposite direction to reverse the effect.
  */
 export async function createConversion(
   input: CreateConversionInput,
 ): Promise<CurrencyConversion> {
   const [row] = await sql<CurrencyConversion[]>`
-    INSERT INTO currency_conversions (egp_amount, usd_amount, exchange_rate, notes, converted_at)
+    INSERT INTO currency_conversions (egp_amount, usd_amount, exchange_rate, direction, notes, converted_at)
     VALUES (
       ${input.egp_amount.toFixed(2)}::numeric,
       ${input.usd_amount.toFixed(2)}::numeric,
       ${input.exchange_rate.toFixed(4)}::numeric,
+      ${input.direction},
       ${input.notes        ?? null},
       ${input.converted_at ?? new Date()}
     )

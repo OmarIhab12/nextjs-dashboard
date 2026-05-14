@@ -205,13 +205,29 @@ async function seed() {
   // ════════════════════════════════════════════════════════════
   // ORDERS (us → supplier, USD)
   // ════════════════════════════════════════════════════════════
-  console.log("  → orders & order_instalments");
+  console.log("  → orders, order_items & order_instalments");
 
-  // Order 1 — TechParts, arrived, 3 instalments, first one paid, second overdue
+  // Order 1 — TechParts, arrived, laptops + keyboards
+  // total_usd is a placeholder; replaceOrderItems will recompute it
   const [order1] = await sql<{ id: string }[]>`
     INSERT INTO orders (supplier_id, total_usd, status, notes, order_date)
-    VALUES (${techSupplier.id}, 8500.00, 'arrived', 'Q1 laptop batch — 10 units', ${daysFromNow(-45)})
+    VALUES (${techSupplier.id}, 1.00, 'arrived', 'Q1 laptop batch', ${daysFromNow(-45)})
     RETURNING id
+  `;
+
+  // Insert order items (prices are what we paid the supplier, not retail)
+  await sql`
+    INSERT INTO order_items (order_id, product_id, product_name, unit_price, quantity, line_total)
+    VALUES
+      (${order1.id}, ${laptop.id},   ${laptop.name},   950.00, 10, 9500.00),
+      (${order1.id}, ${keyboard.id}, ${keyboard.name},  80.00, 20, 1600.00)
+  `;
+
+  // Recompute order total from items
+  await sql`
+    UPDATE orders
+    SET total_usd = (SELECT SUM(line_total) FROM order_items WHERE order_id = ${order1.id})
+    WHERE id = ${order1.id}
   `;
 
   // Replace the auto-created single instalment with 3 scheduled ones
@@ -220,16 +236,34 @@ async function seed() {
     INSERT INTO order_instalments
       (order_id, instalment_number, amount_due, amount_paid, amount_remaining, due_date, status)
     VALUES
-      (${order1.id}, 1, 3000.00, 3000.00, 0.00,    ${daysFromNow(-30)}, 'paid'),
-      (${order1.id}, 2, 3000.00, 0,       3000.00,  ${daysFromNow(-10)}, 'overdue'),
-      (${order1.id}, 3, 2500.00, 0,       2500.00,  ${daysFromNow(30)},  'pending')
+      (${order1.id}, 1, 3000.00, 3000.00, 0.00,   ${daysFromNow(-30)}, 'paid'),
+      (${order1.id}, 2, 4000.00, 0,       4000.00, ${daysFromNow(-10)}, 'overdue'),
+      (${order1.id}, 3, 4100.00, 0,       4100.00, ${daysFromNow(30)},  'pending')
   `;
 
-  // Order 2 — EuroComponents, confirmed, single instalment pending
+  // Order 2 — EuroComponents, confirmed, monitors only
   const [order2] = await sql<{ id: string }[]>`
     INSERT INTO orders (supplier_id, total_usd, status, notes, order_date)
-    VALUES (${euroSupplier.id}, 3200.00, 'confirmed', 'Monitor batch — 8 units', ${daysFromNow(-10)})
+    VALUES (${euroSupplier.id}, 1.00, 'confirmed', 'Monitor batch — 8 units', ${daysFromNow(-10)})
     RETURNING id
+  `;
+
+  await sql`
+    INSERT INTO order_items (order_id, product_id, product_name, unit_price, quantity, line_total)
+    VALUES (${order2.id}, ${monitor.id}, ${monitor.name}, 400.00, 8, 3200.00)
+  `;
+
+  await sql`
+    UPDATE orders
+    SET total_usd = (SELECT SUM(line_total) FROM order_items WHERE order_id = ${order2.id})
+    WHERE id = ${order2.id}
+  `;
+
+  // Update default instalment for order2 to match real total
+  await sql`
+    UPDATE order_instalments
+    SET amount_due = 3200.00, amount_remaining = 3200.00
+    WHERE order_id = ${order2.id}
   `;
 
   // ════════════════════════════════════════════════════════════
@@ -259,10 +293,10 @@ async function seed() {
   // ════════════════════════════════════════════════════════════
   console.log("  → currency conversions");
   await sql`
-    INSERT INTO currency_conversions (egp_amount, usd_amount, exchange_rate, notes, converted_at)
+    INSERT INTO currency_conversions (egp_amount, usd_amount, exchange_rate, direction, notes, converted_at)
     VALUES
-      (150000.00, 3000.00, 50.0000, 'Initial USD reserve for supplier orders', ${daysFromNow(-60)}),
-      (50000.00,   980.39, 51.0000, 'Top-up for order2 payment',               ${daysFromNow(-8)})
+      (150000.00, 3000.00, 50.0000, 'egp_to_usd', 'Initial USD reserve for supplier orders', ${daysFromNow(-60)}),
+      (50000.00,   980.39, 51.0000, 'egp_to_usd', 'Top-up for order2 payment',               ${daysFromNow(-8)})
   `;
 
   // ════════════════════════════════════════════════════════════

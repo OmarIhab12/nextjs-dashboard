@@ -25,7 +25,7 @@ export type OrderPaymentAllocation = {
 export type CreateOrderPaymentInput = {
   order_id:       string;
   amount_usd:     number;
-  payment_method: "bank_transfer" | "cash" | "card" | "vodafone_cash" | "other";
+  payment_method: "bank_transfer" | "cash" | "card" | "check" | "vodafone_cash" | "other";
   reference?:     string;
   notes?:         string;
   paid_at?:       Date;
@@ -34,7 +34,7 @@ export type CreateOrderPaymentInput = {
 
 export type UpdateOrderPaymentInput = {
   amount_usd?:     number;
-  payment_method?: "bank_transfer" | "cash" | "card" | "vodafone_cash" | "other";
+  payment_method?: "bank_transfer" | "cash" | "card" | "check" | "vodafone_cash" | "other";
   allocations?:    OrderPaymentAllocation[]; // required if amount_usd changes
   reference?:      string;
   notes?:          string;
