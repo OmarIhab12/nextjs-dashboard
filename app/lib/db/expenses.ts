@@ -118,17 +118,18 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
 /**
  * Updates an expense.
  *
- * AMOUNT UNCHANGED — only metadata changed (category, description,
- * is_active, next_due_date). Updates the row directly, no wallet entries.
+ * RECURRENCE = 'once' AND AMOUNT CHANGED:
+ *   Performs a wallet reversal immediately — the expense is a single event
+ *   so editing the amount corrects the ledger right now.
+ *   Ledger ends up with: original 'out' | reversal 'in' | correction 'out'
  *
- * AMOUNT CHANGED — performs a wallet reversal so the ledger stays accurate:
- *   1. Find the original wallet_transaction for this expense
- *   2. Write a reversal entry (EGP in, corrects_id → original)  + adjust balance
- *   3. Write a correction entry (EGP out, corrects_id → reversal) + adjust balance
- *   4. Update the expense row with the new amount
+ * RECURRENCE = 'monthly' AND AMOUNT CHANGED:
+ *   Only updates the template row. The new amount takes effect on the next
+ *   firing. Past wallet transactions are untouched.
  *
- * The wallet ledger ends up with three entries:
- *   original 'out' (old amount) | reversal 'in' (old amount) | correction 'out' (new amount)
+ * AMOUNT UNCHANGED:
+ *   Updates metadata only (category, description, is_active, next_due_date).
+ *   No wallet entries written regardless of recurrence.
  */
 export async function updateExpense(
   id:    string,
@@ -159,12 +160,27 @@ export async function updateExpense(
     return updated;
   }
 
-  // ── Case 2: amount changed — write reversal + correction ──────
+  // ── Case 2: monthly + amount changed — template only ─────────
+  // New amount takes effect on next firing. No wallet changes now.
+  if (existing.recurrence === 'monthly') {
+    const [updated] = await sql<Expense[]>`
+      UPDATE expenses SET
+        amount_egp    = ${input.amount_egp!.toFixed(2)}::numeric,
+        category      = COALESCE(${input.category    ?? null}, category),
+        description   = COALESCE(${input.description ?? null}, description),
+        is_active     = COALESCE(${input.is_active   ?? null}, is_active)
+      WHERE id = ${id}
+      RETURNING *
+    `;
+    return updated;
+  }
+
+  // ── Case 3: once + amount changed — wallet reversal ──────────
   const oldAmount = Number(existing.amount_egp);
   const newAmount = input.amount_egp!;
 
   return await sql.begin(async (tx) => {
-    // Find the most recent wallet_transaction for this expense
+    // Find the original wallet_transaction for this expense
     const [originalTx] = await tx<{ id: string }[]>`
       SELECT id FROM wallet_transactions
       WHERE reference_id = ${id}
@@ -205,22 +221,16 @@ export async function updateExpense(
           updated_at  = NOW()
     `;
 
-    // Update the expense row itself
+    // Update the expense row
     const [updated] = await tx<Expense[]>`
       UPDATE expenses SET
-        amount_egp    = ${newAmount.toFixed(2)}::numeric,
-        category      = COALESCE(${input.category    ?? null}, category),
-        description   = COALESCE(${input.description ?? null}, description),
-        is_active     = COALESCE(${input.is_active   ?? null}, is_active),
-        next_due_date = CASE
-          WHEN ${input.next_due_date !== undefined ? 'true' : 'false'} = 'true'
-          THEN ${input.next_due_date ?? null}
-          ELSE next_due_date
-        END
+        amount_egp  = ${newAmount.toFixed(2)}::numeric,
+        category    = COALESCE(${input.category    ?? null}, category),
+        description = COALESCE(${input.description ?? null}, description),
+        is_active   = COALESCE(${input.is_active   ?? null}, is_active)
       WHERE id = ${id}
       RETURNING *
     `;
-
     return updated;
   });
 }

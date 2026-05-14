@@ -7,6 +7,7 @@ import {
   ArchiveBoxIcon,
   ShoppingCartIcon,
   BuildingStorefrontIcon,
+  BanknotesIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -25,6 +26,7 @@ const links = [
   { name: 'Products', href: '/dashboard/products', icon: ArchiveBoxIcon },
   { name: 'Suppliers', href: '/dashboard/suppliers', icon: BuildingStorefrontIcon },
   { name: 'Orders', href: '/dashboard/orders', icon: ShoppingCartIcon },
+  { name: 'Expenses', href: '/dashboard/expenses', icon: BanknotesIcon },
 ];
 
 export default function NavLinks() {
