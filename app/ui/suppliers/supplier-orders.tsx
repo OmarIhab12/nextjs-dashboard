@@ -2,7 +2,7 @@
 
 import TransactionList, { fmt, fmtDate } from '@/app/ui/shared/transaction-list';
 import type { Order, OrderWithPaymentStatus } from '@/app/lib/db/orders';
-import { PaymentStatus } from '../invoices/status';
+import { PaymentStatus } from '../shared/status';
 
 const COLS = 'grid-cols-[1fr_1fr_1fr_6rem]';
 

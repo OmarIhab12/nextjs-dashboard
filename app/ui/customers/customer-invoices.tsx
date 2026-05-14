@@ -1,7 +1,7 @@
 // app/ui/customers/customer-invoices.tsx
 
 import TransactionList, { fmt, fmtDate } from '@/app/ui/shared/transaction-list';
-import { PaymentStatus } from '@/app/ui/invoices/status';
+import { PaymentStatus } from '@/app/ui/shared/status';
 import type { CustomerInvoiceSummary } from '@/app/lib/db/customers';
 
 const COLS = 'grid-cols-[1fr_1fr_1fr_6rem]';

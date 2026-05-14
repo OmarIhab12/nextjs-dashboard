@@ -10,6 +10,10 @@ async function drop() {
   await sql`DROP TRIGGER IF EXISTS trg_expense_sync_wallet         ON expenses`;
   await sql`DROP TRIGGER IF EXISTS trg_conversion_sync_wallet      ON currency_conversions`;
   await sql`DROP TRIGGER IF EXISTS trg_payment_sync_wallet         ON payments`;
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_order_item_insert    ON order_items`;
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_order_item_update    ON order_items`;
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_order_item_delete    ON order_items`;
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_order_status         ON orders`;
   await sql`DROP TRIGGER IF EXISTS trg_order_default_instalment    ON orders`;
 
   // Core
@@ -25,24 +29,31 @@ async function drop() {
   await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_insert         ON invoice_items`;
   await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_update         ON invoice_items`;
   await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_delete         ON invoice_items`;
+  await sql`DROP TRIGGER IF EXISTS trg_installment_sync_status      ON installments`;
+  await sql`DROP TRIGGER IF EXISTS trg_order_instalment_sync_status ON order_instalments`;
 
   // ── Functions ────────────────────────────────────────────────
   await sql`DROP FUNCTION IF EXISTS fn_order_payment_sync_wallet()`;
   await sql`DROP FUNCTION IF EXISTS fn_expense_sync_wallet()`;
   await sql`DROP FUNCTION IF EXISTS fn_conversion_sync_wallet()`;
   await sql`DROP FUNCTION IF EXISTS fn_payment_sync_wallet()`;
+  await sql`DROP FUNCTION IF EXISTS update_stock_on_order_item_change()`;
+  await sql`DROP FUNCTION IF EXISTS update_stock_on_order_status()`;
   await sql`DROP FUNCTION IF EXISTS create_default_order_instalment()`;
   await sql`DROP FUNCTION IF EXISTS create_default_installment()`;
   await sql`DROP FUNCTION IF EXISTS installments_balanced(UUID)`;
   await sql`DROP FUNCTION IF EXISTS update_stock_on_item_insert()`;
   await sql`DROP FUNCTION IF EXISTS update_stock_on_item_update()`;
   await sql`DROP FUNCTION IF EXISTS update_stock_on_item_delete()`;
+  await sql`DROP FUNCTION IF EXISTS sync_installment_status()`;
+  await sql`DROP FUNCTION IF EXISTS sync_order_instalment_status()`;
   await sql`DROP FUNCTION IF EXISTS set_updated_at()`;
 
   // ── Tables — dependants before parents ───────────────────────
 
   // Financial
   await sql`DROP TABLE IF EXISTS order_payment_instalments`;
+  await sql`DROP TABLE IF EXISTS order_items`;
   await sql`DROP TABLE IF EXISTS order_payments`;
   await sql`DROP TABLE IF EXISTS order_instalments`;
   await sql`DROP TABLE IF EXISTS orders`;

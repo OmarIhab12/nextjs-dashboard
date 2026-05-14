@@ -5,7 +5,7 @@ import { TbDiscount } from 'react-icons/tb';
 import { useState } from 'react';
 import DatePicker from 'react-datepicker';
 import { Customer } from '@/app/lib/db/customers';
-import { InvoiceStatus } from '@/app/ui/invoices/status';
+import { InvoiceStatus } from '@/app/ui/shared/status';
 import type { InvoiceStatus as InvoiceStatusType, DiscountType } from '@/app/lib/db/invoices';
 import { fmt } from '@/app/lib/utils';
 
@@ -162,7 +162,7 @@ export function InvoiceStatusField({
 }: {
   defaultValue?: InvoiceStatusType;
 }) {
-  const statuses: InvoiceStatusType[] = ['draft', 'confirmed', 'shipped', 'cancelled'];
+  const statuses: InvoiceStatusType[] = ['draft', 'confirmed', 'shipped'];
 
   return (
     <fieldset className="mb-4">

@@ -12,7 +12,7 @@ async function schema() {
 
   // — Core —
   await sql`DO $$ BEGIN CREATE TYPE user_role          AS ENUM ('admin', 'manager', 'staff');                       EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
-  await sql`DO $$ BEGIN CREATE TYPE invoice_status     AS ENUM ('draft', 'confirmed', 'cancelled', 'shipped');      EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE invoice_status     AS ENUM ('draft', 'confirmed', 'shipped');      EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE discount_type      AS ENUM ('percentage', 'amount');                            EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE payment_status     AS ENUM ('pending', 'partial', 'paid', 'overdue');           EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE payment_method     AS ENUM ('bank_transfer', 'cash', 'card', 'check', 'other'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
@@ -21,7 +21,7 @@ async function schema() {
   await sql`DO $$ BEGIN CREATE TYPE wallet_currency        AS ENUM ('EGP', 'USD');                                              EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE wallet_direction       AS ENUM ('in', 'out');                                               EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE wallet_reason          AS ENUM ('conversion', 'expense', 'order_payment', 'invoice_payment'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
-  await sql`DO $$ BEGIN CREATE TYPE order_status           AS ENUM ('pending', 'confirmed', 'shipped', 'arrived', 'stored', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE order_status           AS ENUM ('draft', 'confirmed', 'shipped', 'arrived', 'stored', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE order_instalment_status AS ENUM ('pending', 'partial', 'paid', 'overdue');                            EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE expense_recurrence     AS ENUM ('once', 'monthly');                                         EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
 
@@ -221,7 +221,7 @@ async function schema() {
       id          UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
       supplier_id UUID           REFERENCES suppliers(id) ON DELETE SET NULL,
       total_usd   NUMERIC(14, 2) NOT NULL CHECK (total_usd > 0),
-      status      order_status   NOT NULL DEFAULT 'pending',
+      status      order_status   NOT NULL DEFAULT 'draft',
       notes       TEXT,
       order_date  TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
       updated_at  TIMESTAMPTZ    NOT NULL DEFAULT NOW()
@@ -245,6 +245,19 @@ async function schema() {
       UNIQUE (order_id, instalment_number),
       CONSTRAINT order_instalment_paid_cap        CHECK (amount_paid <= amount_due),
       CONSTRAINT order_instalment_remaining_check CHECK (amount_remaining = amount_due - amount_paid)
+    )
+  `;
+
+  // ── Order Items (snapshot of what was ordered) ───────────────
+  await sql`
+    CREATE TABLE IF NOT EXISTS order_items (
+      id           UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
+      order_id     UUID           NOT NULL REFERENCES orders(id)   ON DELETE CASCADE,
+      product_id   UUID           REFERENCES products(id)          ON DELETE SET NULL,
+      product_name VARCHAR(255)   NOT NULL,
+      unit_price   NUMERIC(14, 2) NOT NULL CHECK (unit_price >= 0),
+      quantity     INT            NOT NULL CHECK (quantity > 0),
+      line_total   NUMERIC(14, 2) NOT NULL CHECK (line_total >= 0)
     )
   `;
 
@@ -313,6 +326,8 @@ async function schema() {
   await sql`CREATE INDEX IF NOT EXISTS idx_wallet_tx_created          ON wallet_transactions(created_at)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_orders_supplier            ON orders(supplier_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_order_instalments_order    ON order_instalments(order_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_order_items_order         ON order_items(order_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_order_items_product       ON order_items(product_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_order_payments_order       ON order_payments(order_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_order_pay_inst_payment     ON order_payment_instalments(order_payment_id)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_order_pay_inst_instalment  ON order_payment_instalments(instalment_id)`;
@@ -451,6 +466,94 @@ async function schema() {
     CREATE OR REPLACE TRIGGER trg_stock_on_item_delete
       AFTER DELETE ON invoice_items
       FOR EACH ROW EXECUTE FUNCTION update_stock_on_item_delete()
+  `;
+
+  // ── Stock: increment on order status → stored ───────────────
+  // Fires when order status changes TO stored — adds stock.
+  // Fires when status changes AWAY from stored — reverses the increment.
+  await sql`
+    CREATE OR REPLACE FUNCTION update_stock_on_order_status()
+    RETURNS TRIGGER LANGUAGE plpgsql AS $$
+    BEGIN
+      -- Status moved INTO stored → increment stock
+      IF OLD.status <> 'stored' AND NEW.status = 'stored' THEN
+        UPDATE products p
+        SET stock_quantity = stock_quantity + oi.quantity
+        FROM order_items oi
+        WHERE oi.order_id = NEW.id AND oi.product_id = p.id;
+      END IF;
+
+      -- Status moved OUT of stored → reverse the increment
+      IF OLD.status = 'stored' AND NEW.status <> 'stored' THEN
+        UPDATE products p
+        SET stock_quantity = stock_quantity - oi.quantity
+        FROM order_items oi
+        WHERE oi.order_id = NEW.id AND oi.product_id = p.id;
+      END IF;
+
+      RETURN NEW;
+    END;
+    $$
+  `;
+  await sql`
+    CREATE OR REPLACE TRIGGER trg_stock_on_order_status
+      AFTER UPDATE OF status ON orders
+      FOR EACH ROW EXECUTE FUNCTION update_stock_on_order_status()
+  `;
+
+  // ── Stock: order_items INSERT/UPDATE/DELETE (only when order is stored) ──
+  // Mirrors invoice stock triggers but only affects stock when order.status = stored.
+  await sql`
+    CREATE OR REPLACE FUNCTION update_stock_on_order_item_change()
+    RETURNS TRIGGER LANGUAGE plpgsql AS $$
+    DECLARE
+      v_status TEXT;
+    BEGIN
+      SELECT status::TEXT INTO v_status
+      FROM orders WHERE id = COALESCE(NEW.order_id, OLD.order_id);
+
+      -- Only touch stock if the order is already stored
+      IF v_status <> 'stored' THEN
+        RETURN COALESCE(NEW, OLD);
+      END IF;
+
+      IF TG_OP = 'INSERT' THEN
+        IF NEW.product_id IS NOT NULL THEN
+          UPDATE products SET stock_quantity = stock_quantity + NEW.quantity
+          WHERE id = NEW.product_id;
+        END IF;
+
+      ELSIF TG_OP = 'UPDATE' THEN
+        IF NEW.product_id IS NOT NULL AND NEW.quantity <> OLD.quantity THEN
+          UPDATE products SET stock_quantity = stock_quantity + (NEW.quantity - OLD.quantity)
+          WHERE id = NEW.product_id;
+        END IF;
+
+      ELSIF TG_OP = 'DELETE' THEN
+        IF OLD.product_id IS NOT NULL THEN
+          UPDATE products SET stock_quantity = stock_quantity - OLD.quantity
+          WHERE id = OLD.product_id;
+        END IF;
+      END IF;
+
+      RETURN COALESCE(NEW, OLD);
+    END;
+    $$
+  `;
+  await sql`
+    CREATE OR REPLACE TRIGGER trg_stock_on_order_item_insert
+      AFTER INSERT ON order_items
+      FOR EACH ROW EXECUTE FUNCTION update_stock_on_order_item_change()
+  `;
+  await sql`
+    CREATE OR REPLACE TRIGGER trg_stock_on_order_item_update
+      AFTER UPDATE ON order_items
+      FOR EACH ROW EXECUTE FUNCTION update_stock_on_order_item_change()
+  `;
+  await sql`
+    CREATE OR REPLACE TRIGGER trg_stock_on_order_item_delete
+      AFTER DELETE ON order_items
+      FOR EACH ROW EXECUTE FUNCTION update_stock_on_order_item_change()
   `;
 
   // ── Wallet: invoice payments (EGP in on INSERT, EGP out on DELETE) ──

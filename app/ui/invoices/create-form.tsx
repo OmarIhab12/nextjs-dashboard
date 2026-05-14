@@ -8,7 +8,7 @@ import { TbDiscount } from "react-icons/tb";
 import { Button } from '@/app/ui/button';
 import { createInvoiceAction, State } from '@/app/lib/db/invoices';
 import { useActionState, useState } from 'react';
-import { InvoiceStatus } from '@/app/ui/invoices/status';
+import { InvoiceStatus } from '@/app/ui/shared/status';
 import DatePicker from "react-datepicker";
 import { Customer } from '@/app/lib/db/customers';
 import { Product } from '@/app/lib/db/products';

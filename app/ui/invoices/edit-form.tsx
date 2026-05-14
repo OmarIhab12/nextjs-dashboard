@@ -7,7 +7,7 @@ import {
 import { TbDiscount } from "react-icons/tb";
 import Link from 'next/link';
 import { Button } from '@/app/ui/button';
-import { InvoiceStatus } from '@/app/ui/invoices/status';
+import { InvoiceStatus } from '@/app/ui/shared/status';
 import {updateInvoiceAction, State, InvoiceWithItems, DiscountType} from '@/app/lib/db/invoices'
 import DatePicker from "react-datepicker";
 import { useState, useActionState } from "react";

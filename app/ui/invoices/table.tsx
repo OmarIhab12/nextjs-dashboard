@@ -1,5 +1,5 @@
 import { UpdateInvoice, DeleteInvoice } from '@/app/ui/invoices/buttons';
-import { InvoiceStatus, PaymentStatus } from '@/app/ui/invoices/status';
+import { InvoiceStatus, PaymentStatus } from '@/app/ui/shared/status';
 import { formatDateToLocal, formatCurrency } from '@/app/lib/utils';
 import { fetchFilteredInvoices } from '@/app/lib/db/invoices';
 import {

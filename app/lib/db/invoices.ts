@@ -9,7 +9,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { getProductById} from '@/app/lib/db/products';
 
-export type InvoiceStatus = "draft" | "confirmed" | "cancelled" | "shipped" ;
+export type InvoiceStatus = "draft" | "confirmed" | "shipped" ;
 export type DiscountType  = "percentage" | "amount";
 
 export interface InvoiceItem {
