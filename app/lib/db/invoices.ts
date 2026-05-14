@@ -163,7 +163,7 @@ const FormSchema = z.object({
   discount_value: z.coerce
     .number()
     .gte(0, { message: 'Please enter an amount greater than $0.' }),
-  status: z.enum(['draft', 'confirmed', 'shipped', 'cancelled'], {
+  status: z.enum(['draft', 'confirmed', 'shipped'], {
     invalid_type_error: 'Please select an invoice status.',
   }),
   discount_type: z.enum(['percentage', 'amount'], {

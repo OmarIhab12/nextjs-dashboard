@@ -56,7 +56,7 @@ export async function addSupplierPaymentAction(
     // Find the oldest unpaid order for this supplier
     const allOrders = await getAllOrders();
     const unpaidOrders = allOrders
-      .filter((o) => o.supplier_id === supplierId && o.status !== 'paid')
+      .filter((o) => o.supplier_id === supplierId && o.payment_status !== 'paid')
       .sort((a, b) => new Date(a.order_date).getTime() - new Date(b.order_date).getTime());
 
     if (unpaidOrders.length === 0) return { error: 'No outstanding orders for this supplier.' };

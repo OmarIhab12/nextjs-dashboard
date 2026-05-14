@@ -1,63 +1,66 @@
-// import { generateYAxis } from '@/app/lib/utils';
-// import { CalendarIcon } from '@heroicons/react/24/outline';
-// import { lusitana } from '@/app/ui/fonts';
-// import { Revenue } from '@/app/lib/definitions';
-// import { fetchRevenue } from '@/app/lib/db/revenue';
+'use client';
 
-// // This component is representational only.
-// // For data visualization UI, check out:
-// // https://www.tremor.so/
-// // https://www.chartjs.org/
-// // https://airbnb.io/visx/
+// app/ui/dashboard/revenue-chart.tsx
 
-// export default async function RevenueChart() { // Make component async, remove the props
-//   const revenue = await fetchRevenue();
-//   const chartHeight = 350;
-//   // NOTE: Uncomment this code in Chapter 7
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, Dot,
+} from 'recharts';
+import DashboardCard        from '@/app/ui/dashboard/dashboard-card';
+import type { MonthlySales } from '@/app/lib/db/dashboard';
 
-//   const { yAxisLabels, topLabel } = generateYAxis(revenue);
+function fmt(n: number) {
+  if (n >= 1_000_000) return `E£ ${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `E£ ${(n / 1_000).toFixed(1)}K`;
+  return `E£ ${n}`;
+}
 
-//   if (!revenue || revenue.length === 0) {
-//     return <p className="mt-4 text-gray-400">No data available.</p>;
-//   }
+export default function DashboardRevenueChart({
+  data,
+}: {
+  data: MonthlySales[];
+}) {
+  const hasData = data.some((d) => d.revenue > 0);
 
-//   return (
-//     <div className="w-full md:col-span-4">
-//       <h2 className={`${lusitana.className} mb-4 text-xl md:text-2xl`}>
-//         Recent Revenue
-//       </h2>
-//       {/* NOTE: Uncomment this code in Chapter 7 */}
-
-//       <div className="rounded-xl bg-gray-50 p-4">
-//         <div className="sm:grid-cols-13 mt-0 grid grid-cols-12 items-end gap-2 rounded-md bg-white p-4 md:gap-4">
-//           <div
-//             className="mb-6 hidden flex-col justify-between text-sm text-gray-400 sm:flex"
-//             style={{ height: `${chartHeight}px` }}
-//           >
-//             {yAxisLabels.map((label) => (
-//               <p key={label}>{label}</p>
-//             ))}
-//           </div>
-
-//           {revenue.map((month) => (
-//             <div key={month.month} className="flex flex-col items-center gap-2">
-//               <div
-//                 className="w-full rounded-md bg-blue-300"
-//                 style={{
-//                   height: `${(chartHeight / topLabel) * month.revenue}px`,
-//                 }}
-//               ></div>
-//               <p className="-rotate-90 text-sm text-gray-400 sm:rotate-0">
-//                 {month.month}
-//               </p>
-//             </div>
-//           ))}
-//         </div>
-//         <div className="flex items-center pb-2 pt-6">
-//           <CalendarIcon className="h-5 w-5 text-gray-500" />
-//           <h3 className="ml-2 text-sm text-gray-500 ">Last 12 months</h3>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
+  return (
+    <DashboardCard title="Monthly Sales · Last 12 Months">
+      {!hasData ? (
+        <p className="py-8 text-center text-sm text-gray-300">No sales data yet.</p>
+      ) : (
+        <ResponsiveContainer width="100%" height={280}>
+          <LineChart data={data} margin={{ top: 20, right: 16, left: 8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+            <XAxis
+              dataKey="month"
+              tick={{ fontSize: 11, fill: '#9ca3af' }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tickFormatter={fmt}
+              tick={{ fontSize: 11, fill: '#9ca3af' }}
+              axisLine={false}
+              tickLine={false}
+              width={80}
+            />
+            <Tooltip
+              formatter={(value) => [
+                `E£ ${Number(value).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+                'Revenue',
+              ]}
+              contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+            />
+            <Line
+              type="monotone"
+              dataKey="revenue"
+              stroke="#3b82f6"
+              strokeWidth={2}
+              dot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }}
+              activeDot={{ r: 6, fill: '#2563eb', strokeWidth: 0 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+    </DashboardCard>
+  );
+}
