@@ -20,8 +20,8 @@ export default function CustomerInvoices({
       title="Invoices"
       count={invoices.length}
       statCards={[
-        { label: 'Total invoiced', value: `$${fmt(grandTotal)}` },
-        { label: 'Total paid',     value: `$${fmt(totalPaid)}`,  accent: true },
+        { label: 'Total invoiced', value: `E£${fmt(grandTotal)}` },
+        { label: 'Total paid',     value: `E£${fmt(totalPaid)}`,  accent: true },
       ]}
       cols={COLS}
       headers={[
@@ -36,10 +36,10 @@ export default function CustomerInvoices({
         <>
           <span className="text-sm text-gray-500">{fmtDate(inv.created_at)}</span>
           <span className="text-center text-sm font-medium tabular-nums text-gray-800">
-            ${fmt(Number(inv.total))}
+            E£{fmt(Number(inv.total))}
           </span>
           <span className="text-center text-sm tabular-nums text-gray-500">
-            ${fmt(Number(inv.paid))}
+            E£{fmt(Number(inv.paid))}
           </span>
           <div className="flex justify-center">
             <PaymentStatus status={inv.payment_status} />

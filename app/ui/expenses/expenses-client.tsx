@@ -269,7 +269,7 @@ function ExpenseTable({
                   {isEditing ? (
                     <div className="relative">
                       <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-                        EGP
+                        E£
                       </span>
                       <EditInput
                         value={state.amount_egp}
@@ -279,7 +279,7 @@ function ExpenseTable({
                     </div>
                   ) : (
                     <span className="text-sm tabular-nums text-gray-700">
-                      EGP {fmt(Number(row.amount_egp))}
+                      E£ {fmt(Number(row.amount_egp))}
                     </span>
                   )}
 
@@ -405,7 +405,7 @@ export default function ExpensesClient({
             <div className="rounded-md border border-gray-100 bg-gray-50 px-4 py-3">
               <p className="text-xs text-gray-400">Total one-off</p>
               <p className="text-sm font-semibold tabular-nums text-gray-800">
-                EGP {fmt(totalOnce)}
+                E£ {fmt(totalOnce)}
               </p>
             </div>
             <div className="rounded-md border border-gray-100 bg-gray-50 px-4 py-3">
@@ -418,7 +418,7 @@ export default function ExpensesClient({
             <div className="rounded-md border border-gray-100 bg-gray-50 px-4 py-3">
               <p className="text-xs text-gray-400">Monthly total (active)</p>
               <p className="text-sm font-semibold tabular-nums text-gray-800">
-                EGP {fmt(totalMonthly)}
+                E£ {fmt(totalMonthly)}
               </p>
             </div>
             <div className="rounded-md border border-gray-100 bg-gray-50 px-4 py-3">

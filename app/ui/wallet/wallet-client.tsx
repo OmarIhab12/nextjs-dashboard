@@ -40,7 +40,7 @@ function BalanceCard({
       <p className={`mt-2 text-3xl font-bold tabular-nums ${
         accent ? 'text-blue-700' : 'text-gray-800'
       }`}>
-        {currency === 'EGP' ? 'EGP' : '$'} {fmt(amount)}
+        {currency === 'EGP' ? 'E£' : '$'} {fmt(amount)}
       </p>
     </div>
   );
@@ -78,7 +78,7 @@ function RateBadge({
         <div>
           <p className="text-xs text-gray-400">Live exchange rate</p>
           <p className="text-sm font-semibold text-gray-800">
-            1 USD = <span className="text-blue-600">{fmt(rate, 4)} EGP</span>
+            1 USD = <span className="text-blue-600">{fmt(rate, 4)} E£</span>
           </p>
         </div>
       </div>
@@ -116,11 +116,11 @@ function ConversionForm({
   // Labels and available balance based on direction
   const fromCurrency  = isEgpToUsd ? 'EGP' : 'USD';
   const toCurrency    = isEgpToUsd ? 'USD' : 'EGP';
-  const fromPrefix    = isEgpToUsd ? 'EGP' : '$';
-  const toPrefix      = isEgpToUsd ? '$' : 'EGP';
+  const fromPrefix    = isEgpToUsd ? 'E£' : '$';
+  const toPrefix      = isEgpToUsd ? '$' : 'E£';
   const fromAvailable = isEgpToUsd ? egpBalance : usdBalance;
   const fromAvailableLabel = isEgpToUsd
-    ? `Available: EGP ${fmt(egpBalance)}`
+    ? `Available: E£ ${fmt(egpBalance)}`
     : `Available: $${fmt(usdBalance)}`;
 
   // Recompute toAmount when fromAmount or rate changes
@@ -358,7 +358,7 @@ export default function WalletClient({
         <div className="rounded-xl border border-gray-100 bg-white px-6 py-4">
           <p className="text-xs text-gray-400">Total value in EGP (at live rate)</p>
           <p className="mt-1 text-xl font-bold tabular-nums text-gray-800">
-            EGP {fmt(egpBalance + usdBalance * liveRate)}
+            E£ {fmt(egpBalance + usdBalance * liveRate)}
           </p>
         </div>
       )}

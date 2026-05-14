@@ -1,6 +1,6 @@
 import { UpdateInvoice, DeleteInvoice } from '@/app/ui/invoices/buttons';
 import { InvoiceStatus, PaymentStatus } from '@/app/ui/shared/status';
-import { formatDateToLocal, formatCurrency } from '@/app/lib/utils';
+import { formatDateToLocal, formatCurrencyEGP } from '@/app/lib/utils';
 import { fetchFilteredInvoices } from '@/app/lib/db/invoices';
 import {
   TableContainer, TableHeader, TableRows, TableRow,
@@ -37,7 +37,7 @@ export default async function InvoicesTable({
               <MobileCardFooter>
                 <div>
                   <p className="text-sm font-semibold text-gray-800 tabular-nums">
-                    {formatCurrency(parseInt(invoice.total))}
+                    {formatCurrencyEGP(parseInt(invoice.total))}
                   </p>
                   <p className="text-xs text-gray-400">{formatDateToLocal(invoice.created_at)}</p>
                   <div className="mt-1">
@@ -72,7 +72,7 @@ export default async function InvoicesTable({
                     {invoice.email}
                   </span>
                   <span className="text-sm tabular-nums text-gray-700">
-                    {formatCurrency(parseInt(invoice.total))}
+                    {formatCurrencyEGP(parseInt(invoice.total))}
                   </span>
                   <span className="text-sm text-gray-500">
                     {formatDateToLocal(invoice.created_at)}

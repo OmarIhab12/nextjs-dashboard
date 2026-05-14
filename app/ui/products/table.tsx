@@ -315,12 +315,12 @@ export default function ProductsTable({ products }: { products: ProductRow[] }) 
                   {/* Price */}
                   {isEditing ? (
                     <div className="relative">
-                      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
-                      <EditInput value={state.price} onChange={(v) => setEdit(row._key, { price: v })} type="number" placeholder="0.00" className="pl-5" />
+                      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">E£</span>
+                      <EditInput value={state.price} onChange={(v) => setEdit(row._key, { price: v })} type="number" placeholder="0.00" className="pl-6" />
                     </div>
                   ) : (
                     <span className={`text-sm tabular-nums text-gray-700 ${!row.is_active ? 'opacity-50' : ''}`}>
-                      ${parseFloat(row.price).toFixed(2)}
+                      E£{parseFloat(row.price).toFixed(2)}
                     </span>
                   )}
 

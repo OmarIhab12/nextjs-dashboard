@@ -85,8 +85,7 @@ export default function OrderLineItems({
       updateItem(key, {
         product_id:   product.id,
         product_name: product.name,
-        // Suggest retail price as a starting point — user can edit to actual supplier price
-        unit_price:   parseFloat(product.price),
+        unit_price:   0,   // user enters actual supplier price manually
       });
     } else {
       updateItem(key, { product_id: '', product_name: '', unit_price: 0 });

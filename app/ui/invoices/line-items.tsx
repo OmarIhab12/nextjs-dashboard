@@ -209,7 +209,7 @@ export default function LineItems({
               {/* Unit price */}
               <div className="relative">
                 <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-                  $
+                  E£
                 </span>
                 <input
                   type="number"
@@ -222,13 +222,13 @@ export default function LineItems({
                     })
                   }
                   placeholder="0.00"
-                  className="block w-full rounded-md border border-gray-200 py-1.5 pl-5 pr-2 text-sm outline-2"
+                  className="block w-full rounded-md border border-gray-200 py-1.5 pl-6 pr-2 text-sm outline-2"
                 />
               </div>
 
               {/* Line total */}
               <span className="text-right text-sm font-semibold text-gray-700 tabular-nums">
-                ${fmt(item.unit_price * item.quantity)}
+                E£{fmt(item.unit_price * item.quantity)}
               </span>
 
               {/* Remove */}

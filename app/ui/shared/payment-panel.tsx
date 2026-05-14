@@ -131,7 +131,7 @@ export default function PaymentPanel({
                   value={amount}
                   onChange={(e) => { setAmount(e.target.value); setError(null); }}
                   placeholder="0.00"
-                  className="block w-full rounded-md border border-gray-200 py-1.5 pl-5 pr-2 text-sm outline-none focus:border-gray-400"
+                  className="block w-full rounded-md border border-gray-200 py-1.5 pl-6 pr-2 text-sm outline-none focus:border-gray-400"
                 />
               </div>
             </div>

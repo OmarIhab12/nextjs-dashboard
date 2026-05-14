@@ -1,6 +1,6 @@
 'use server';
 import sql from "../db";
-import { formatCurrency } from '../utils';
+import { formatCurrencyEGP } from '../utils';
 import { PaymentStatus, syncInstallmentWithInvoice } from "./installments";
 import { z } from 'zod';
 import postgres from 'postgres';
@@ -233,7 +233,7 @@ export async function getLatestInvoices() {
 
     const latestInvoices = data.map((invoice) => ({
       ...invoice,
-      amount: formatCurrency(invoice.total),
+      amount: formatCurrencyEGP(invoice.total),
     }));
     return latestInvoices;
   } catch (error) {

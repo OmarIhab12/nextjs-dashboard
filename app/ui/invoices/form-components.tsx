@@ -225,7 +225,7 @@ export function MoneyField({
     <div className="mt-4 rounded-md border border-gray-200 bg-white p-4 space-y-2">
           <div className="flex justify-between text-sm text-gray-600">
             <span>Subtotal</span>
-            <span className="tabular-nums">${fmt(subtotal)}</span>
+            <span className="tabular-nums">E£{fmt(subtotal)}</span>
           </div>
 
           {discountAmount > 0 && (
@@ -234,13 +234,13 @@ export function MoneyField({
                 Discount
                 {discountType === 'percentage' ? ` (${discountValue}%)` : ''}
               </span>
-              <span className="tabular-nums">−${fmt(discountAmount)}</span>
+              <span className="tabular-nums">−E£{fmt(discountAmount)}</span>
             </div>
           )}
 
           <div className="flex justify-between border-t border-gray-100 pt-2 text-base font-semibold text-gray-900">
             <span>Total</span>
-            <span className="tabular-nums">${fmt(total)}</span>
+            <span className="tabular-nums">E£{fmt(total)}</span>
           </div>
         </div>
   );

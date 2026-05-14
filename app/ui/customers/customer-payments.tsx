@@ -27,7 +27,7 @@ export default function CustomerPayments({
       balanceLabel="Outstanding balance"
       balanceAmount={totalOwed}
       balanceAccent="amber"
-      currencySymbol="$"
+      currencySymbol="E£"
       payments={rows}
       canAdd={totalOwed > 0}
       addButtonLabel="Add payment"
