@@ -9,13 +9,15 @@ import {
   getTopDebtors,
   getMonthlySales,
   getDashboardWallet,
+  getTopCustomersByRevenue,
 } from '@/app/lib/db/dashboard';
 import DashboardLatestInvoices from '@/app/ui/dashboard/latest-invoices';
 import DashboardLatestOrders   from '@/app/ui/dashboard/latest-orders';
 import DashboardTopProducts    from '@/app/ui/dashboard/top-products';
-import DashboardTopDebtors     from '@/app/ui/dashboard/top-debtors';
+import DashboardTopBuyers     from '@/app/ui/dashboard/top-customers';
 import DashboardWallet         from '@/app/ui/dashboard/wallet-card';
 import DashboardRevenueChart   from '@/app/ui/dashboard/revenue-chart';
+import DashboardTopDebtors    from '@/app/ui/dashboard/top-debtors';
 
 export const dynamic = 'force-dynamic';
 export default async function Page() {
@@ -26,6 +28,7 @@ export default async function Page() {
     topDebtors,
     monthlySales,
     wallet,
+    topCustomers,
   ] = await Promise.all([
     getLatestInvoices(),
     getLatestOrders(),
@@ -33,6 +36,7 @@ export default async function Page() {
     getTopDebtors(),
     getMonthlySales(),
     getDashboardWallet(),
+    getTopCustomersByRevenue(),
   ]);
 
   return (
@@ -60,10 +64,15 @@ export default async function Page() {
         <DashboardLatestOrders   orders={orders} />
       </div>
 
-      {/* ── Top products + Top debtors ── */}
+      {/* ── Top products + Top buyers ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <DashboardTopProducts products={topProducts} />
-        <DashboardTopDebtors  debtors={topDebtors} />
+        <DashboardTopBuyers customers={topCustomers} />
+      </div>
+
+      {/* ── Top products + Top debtors ── */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <DashboardTopDebtors debtors={topDebtors} />
       </div>
     </main>
   );

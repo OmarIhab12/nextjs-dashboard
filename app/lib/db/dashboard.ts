@@ -94,12 +94,49 @@ export async function getTopDebtors(): Promise<CustomerDebt[]> {
       c.email,
       SUM(inst.amount_remaining)::text AS amount_owed
     FROM customers c
-    JOIN invoices i     ON i.customer_id = c.id
+    JOIN invoices i        ON i.customer_id  = c.id
     JOIN installments inst ON inst.invoice_id = i.id
     WHERE inst.amount_remaining > 0
     GROUP BY c.id, c.name, c.email
     ORDER BY SUM(inst.amount_remaining) DESC
     LIMIT 5
+  `;
+}
+
+export type TopCustomer = {
+  id:      string;
+  name:    string;
+  email:   string | null;
+  total:   string;
+};
+
+export async function getTopCustomersByRevenue(): Promise<TopCustomer[]> {
+  return sql<TopCustomer[]>`
+    SELECT
+      c.id,
+      c.name,
+      c.email,
+      SUM(i.total)::text AS total
+    FROM customers c
+    JOIN invoices i ON i.customer_id = c.id
+    GROUP BY c.id, c.name, c.email
+    ORDER BY SUM(i.total) DESC
+    LIMIT 5
+  `;
+}
+export async function getAllDebtors(): Promise<CustomerDebt[]> {
+  return sql<CustomerDebt[]>`
+    SELECT
+      c.id,
+      c.name,
+      c.email,
+      SUM(inst.amount_remaining)::text AS amount_owed
+    FROM customers c
+    JOIN invoices i        ON i.customer_id  = c.id
+    JOIN installments inst ON inst.invoice_id = i.id
+    WHERE inst.amount_remaining > 0
+    GROUP BY c.id, c.name, c.email
+    ORDER BY SUM(inst.amount_remaining) DESC
   `;
 }
 

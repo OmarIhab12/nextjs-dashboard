@@ -9,6 +9,7 @@ import {
   BuildingStorefrontIcon,
   BanknotesIcon,
   WalletIcon,
+  ScaleIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -18,12 +19,9 @@ import clsx from 'clsx';
 // Depending on the size of the application, this would be stored in a database.
 const links = [
   { name: 'Home', href: '/dashboard', icon: HomeIcon },
-  {
-    name: 'Invoices',
-    href: '/dashboard/invoices',
-    icon: DocumentDuplicateIcon,
-  },
+  { name: 'Invoices',  href: '/dashboard/invoices',     icon: DocumentDuplicateIcon  },
   { name: 'Customers', href: '/dashboard/customers', icon: UserGroupIcon },
+  { name: 'Balances',  href: '/dashboard/balances',     icon: ScaleIcon},
   { name: 'Products', href: '/dashboard/products', icon: ArchiveBoxIcon },
   { name: 'Suppliers', href: '/dashboard/suppliers', icon: BuildingStorefrontIcon },
   { name: 'Orders', href: '/dashboard/orders', icon: ShoppingCartIcon },

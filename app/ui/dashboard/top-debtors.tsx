@@ -37,19 +37,25 @@ export default function DashboardTopDebtors({
                   {d.email && <p className="text-xs text-gray-400">{d.email}</p>}
                 </div>
               </div>
-              <span className="text-sm font-semibold tabular-nums text-amber-600">
-                E£ {fmt(Number(d.amount_owed))}
+              <span className="text-sm font-semibold tabular-nums text-red-600">
+                EGP {fmt(Number(d.amount_owed))}
               </span>
             </div>
             {/* Progress bar */}
             <div className="h-1.5 w-full rounded-full bg-gray-100">
               <div
-                className="h-1.5 rounded-full bg-amber-400"
+                className="h-1.5 rounded-full bg-red-400"
                 style={{ width: `${(Number(d.amount_owed) / maxDebt) * 100}%` }}
               />
             </div>
           </Link>
         ))}
+      </div>
+      <div className="mt-4 border-t border-gray-50 pt-3">
+        <Link href="/dashboard/balances"
+          className="text-xs text-blue-500 hover:text-blue-700 transition-colors">
+          View all outstanding balances →
+        </Link>
       </div>
     </DashboardCard>
   );
