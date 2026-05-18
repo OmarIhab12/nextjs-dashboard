@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import { getAllProducts } from '@/app/lib/db/products';
 import { DownloadPDFButton } from '@/app/ui/button';
  
+export const dynamic = 'force-dynamic';
 export default async function Page(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const id = params.id;
