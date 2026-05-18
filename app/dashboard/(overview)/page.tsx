@@ -17,6 +17,7 @@ import DashboardTopDebtors     from '@/app/ui/dashboard/top-debtors';
 import DashboardWallet         from '@/app/ui/dashboard/wallet-card';
 import DashboardRevenueChart   from '@/app/ui/dashboard/revenue-chart';
 
+export const dynamic = 'force-dynamic';
 export default async function Page() {
   const [
     invoices,
