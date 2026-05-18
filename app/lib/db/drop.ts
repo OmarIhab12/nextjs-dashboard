@@ -79,6 +79,7 @@ async function drop() {
   await sql`DROP TYPE IF EXISTS order_instalment_status`;
   await sql`DROP TYPE IF EXISTS order_status`;
   await sql`DROP TYPE IF EXISTS expense_recurrence`;
+  await sql`DROP TYPE IF EXISTS expense_type`;
   await sql`DROP TYPE IF EXISTS wallet_reason`;
   await sql`DROP TYPE IF EXISTS wallet_direction`;
   await sql`DROP TYPE IF EXISTS wallet_currency`;

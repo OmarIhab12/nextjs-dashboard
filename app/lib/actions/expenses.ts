@@ -21,20 +21,23 @@ export async function createExpenseAction(
   formData: FormData,
 ): Promise<ExpenseFormState> {
   try {
-    const category   = formData.get('category')   as string;
-    const recurrence = formData.get('recurrence')  as 'once' | 'monthly';
-    const amount_egp = parseFloat(formData.get('amount_egp') as string);
-    const description = formData.get('description') as string;
+    const category    = formData.get('category')     as string;
+    const expense_type = formData.get('expense_type') as string;
+    const recurrence  = formData.get('recurrence')   as 'once' | 'monthly';
+    const amount_egp  = parseFloat(formData.get('amount_egp') as string);
+    const description = formData.get('description')  as string;
 
     if (!category?.trim())       return { error: 'Category is required.' };
+    if (!expense_type)           return { error: 'Expense type is required.' };
     if (!amount_egp || amount_egp <= 0) return { error: 'Amount must be greater than zero.' };
     if (!['once', 'monthly'].includes(recurrence)) return { error: 'Invalid recurrence.' };
 
     await createExpense({
-      category:    category.trim(),
+      category:     category.trim(),
+      expense_type: expense_type as any,
       recurrence,
       amount_egp,
-      description: description?.trim() || undefined,
+      description:  description?.trim() || undefined,
     });
 
     revalidatePath('/dashboard/expenses');
@@ -52,17 +55,20 @@ export async function updateExpenseAction(
   formData: FormData,
 ): Promise<ExpenseFormState> {
   try {
-    const category    = formData.get('category')    as string;
-    const amount_egp  = parseFloat(formData.get('amount_egp') as string);
-    const description = formData.get('description') as string;
+    const category     = formData.get('category')     as string;
+    const expense_type = formData.get('expense_type') as string;
+    const amount_egp   = parseFloat(formData.get('amount_egp') as string);
+    const description  = formData.get('description')  as string;
 
-    if (!category?.trim())            return { error: 'Category is required.' };
+    if (!category?.trim())              return { error: 'Category is required.' };
+    if (!expense_type)                  return { error: 'Expense type is required.' };
     if (!amount_egp || amount_egp <= 0) return { error: 'Amount must be greater than zero.' };
 
     await updateExpense(id, {
-      category:    category.trim(),
+      category:     category.trim(),
+      expense_type: expense_type as any,
       amount_egp,
-      description: description?.trim() || undefined,
+      description:  description?.trim() || undefined,
     });
 
     revalidatePath('/dashboard/expenses');

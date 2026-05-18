@@ -4,9 +4,12 @@ import sql from "@/app/lib/db";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export type ExpenseType = 'operating' | 'payroll' | 'tax' | 'other';
+
 export type Expense = {
   id:            string;
   category:      string;
+  expense_type:  ExpenseType;
   recurrence:    "once" | "monthly";
   amount_egp:    string;
   description:   string | null;
@@ -18,6 +21,7 @@ export type Expense = {
 
 export type CreateExpenseInput = {
   category:      string;
+  expense_type:  ExpenseType;
   recurrence:    "once" | "monthly";
   amount_egp:    number;
   description?:  string;
@@ -28,7 +32,8 @@ export type CreateExpenseInput = {
 
 export type UpdateExpenseInput = {
   category?:      string;
-  amount_egp?:    number;    // triggers wallet reversal if changed
+  expense_type?:  ExpenseType;
+  amount_egp?:    number;
   description?:   string;
   is_active?:     boolean;
   next_due_date?: Date | null;
@@ -100,9 +105,10 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
     : null;
 
   const [row] = await sql<Expense[]>`
-    INSERT INTO expenses (category, recurrence, amount_egp, description, expense_date, next_due_date, is_active)
+    INSERT INTO expenses (category, expense_type, recurrence, amount_egp, description, expense_date, next_due_date, is_active)
     VALUES (
       ${input.category},
+      ${input.expense_type},
       ${input.recurrence},
       ${input.amount_egp.toFixed(2)}::numeric,
       ${input.description   ?? null},
@@ -146,9 +152,10 @@ export async function updateExpense(
   if (!amountChanged) {
     const [updated] = await sql<Expense[]>`
       UPDATE expenses SET
-        category      = COALESCE(${input.category    ?? null}, category),
-        description   = COALESCE(${input.description ?? null}, description),
-        is_active     = COALESCE(${input.is_active   ?? null}, is_active),
+        category      = COALESCE(${input.category      ?? null}, category),
+        expense_type  = COALESCE(${input.expense_type  ?? null}::expense_type, expense_type),
+        description   = COALESCE(${input.description   ?? null}, description),
+        is_active     = COALESCE(${input.is_active     ?? null}, is_active),
         next_due_date = CASE
           WHEN ${input.next_due_date !== undefined ? 'true' : 'false'} = 'true'
           THEN ${input.next_due_date ?? null}
@@ -166,9 +173,10 @@ export async function updateExpense(
     const [updated] = await sql<Expense[]>`
       UPDATE expenses SET
         amount_egp    = ${input.amount_egp!.toFixed(2)}::numeric,
-        category      = COALESCE(${input.category    ?? null}, category),
-        description   = COALESCE(${input.description ?? null}, description),
-        is_active     = COALESCE(${input.is_active   ?? null}, is_active)
+        category      = COALESCE(${input.category     ?? null}, category),
+        expense_type  = COALESCE(${input.expense_type ?? null}::expense_type, expense_type),
+        description   = COALESCE(${input.description  ?? null}, description),
+        is_active     = COALESCE(${input.is_active    ?? null}, is_active)
       WHERE id = ${id}
       RETURNING *
     `;
@@ -224,10 +232,11 @@ export async function updateExpense(
     // Update the expense row
     const [updated] = await tx<Expense[]>`
       UPDATE expenses SET
-        amount_egp  = ${newAmount.toFixed(2)}::numeric,
-        category    = COALESCE(${input.category    ?? null}, category),
-        description = COALESCE(${input.description ?? null}, description),
-        is_active   = COALESCE(${input.is_active   ?? null}, is_active)
+        amount_egp   = ${newAmount.toFixed(2)}::numeric,
+        category     = COALESCE(${input.category     ?? null}, category),
+        expense_type = COALESCE(${input.expense_type ?? null}::expense_type, expense_type),
+        description  = COALESCE(${input.description  ?? null}, description),
+        is_active    = COALESCE(${input.is_active    ?? null}, is_active)
       WHERE id = ${id}
       RETURNING *
     `;
@@ -255,6 +264,7 @@ export async function fireMonthlyExpense(templateId: string): Promise<Expense> {
 
   const newExpense = await createExpense({
     category:     template.category,
+    expense_type: template.expense_type,
     recurrence:   'once',
     amount_egp:   Number(template.amount_egp),
     description:  template.description ?? undefined,

@@ -12,18 +12,19 @@ async function schema() {
 
   // — Core —
   await sql`DO $$ BEGIN CREATE TYPE user_role          AS ENUM ('admin', 'manager', 'staff');                       EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
-  await sql`DO $$ BEGIN CREATE TYPE invoice_status     AS ENUM ('draft', 'confirmed', 'shipped');      EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE invoice_status     AS ENUM ('draft', 'confirmed', 'cancelled', 'shipped');      EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE discount_type      AS ENUM ('percentage', 'amount');                            EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE payment_status     AS ENUM ('pending', 'partial', 'paid', 'overdue');           EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
-  await sql`DO $$ BEGIN CREATE TYPE payment_method     AS ENUM ('bank_transfer', 'cash', 'card', 'check', 'vodafone_cash', 'other'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE payment_method     AS ENUM ('bank_transfer', 'cash', 'card', 'check', 'other'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
 
   // — Financial —
   await sql`DO $$ BEGIN CREATE TYPE wallet_currency        AS ENUM ('EGP', 'USD');                                              EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE wallet_direction       AS ENUM ('in', 'out');                                               EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE wallet_reason          AS ENUM ('conversion', 'expense', 'order_payment', 'invoice_payment'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
-  await sql`DO $$ BEGIN CREATE TYPE order_status           AS ENUM ('draft', 'confirmed', 'shipped', 'arrived', 'stored', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE order_status           AS ENUM ('pending', 'confirmed', 'shipped', 'arrived', 'stored', 'cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE order_instalment_status AS ENUM ('pending', 'partial', 'paid', 'overdue');                            EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
-  await sql`DO $$ BEGIN CREATE TYPE expense_recurrence     AS ENUM ('once', 'monthly');                                         EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE expense_recurrence AS ENUM ('once', 'monthly');                     EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE expense_type       AS ENUM ('operating', 'payroll', 'tax', 'other'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
 
   console.log("  ✓ Enums");
 
@@ -224,7 +225,7 @@ async function schema() {
       id          UUID           PRIMARY KEY DEFAULT uuid_generate_v4(),
       supplier_id UUID           REFERENCES suppliers(id) ON DELETE SET NULL,
       total_usd   NUMERIC(14, 2) NOT NULL CHECK (total_usd > 0),
-      status      order_status   NOT NULL DEFAULT 'draft',
+      status      order_status   NOT NULL DEFAULT 'pending',
       notes       TEXT,
       order_date  TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
       updated_at  TIMESTAMPTZ    NOT NULL DEFAULT NOW()
@@ -294,6 +295,7 @@ async function schema() {
     CREATE TABLE IF NOT EXISTS expenses (
       id            UUID               PRIMARY KEY DEFAULT uuid_generate_v4(),
       category      VARCHAR(100)       NOT NULL,
+      expense_type  expense_type       NOT NULL DEFAULT 'other',
       recurrence    expense_recurrence NOT NULL DEFAULT 'once',
       amount_egp    NUMERIC(14, 2)     NOT NULL CHECK (amount_egp > 0),
       description   TEXT,

@@ -23,6 +23,7 @@ async function seed() {
   const admin   = await createUser({ name: "Alice Weber",   email: "alice@dashboard.dev", password: "hashed_pw_alice", role: "admin"   });
   const manager = await createUser({ name: "Bruno Meier",   email: "bruno@dashboard.dev", password: "hashed_pw_bruno", role: "manager" });
   const staff   = await createUser({ name: "Clara Schmidt", email: "clara@dashboard.dev", password: "hashed_pw_clara", role: "staff"   });
+  const refaey   = await createUser({ name: "Refaey",   email: "refaey@cigalah.com", password: "Refaey", role: "admin"   });
 
   // ════════════════════════════════════════════════════════════
   // CUSTOMERS
@@ -304,14 +305,14 @@ async function seed() {
   // ════════════════════════════════════════════════════════════
   console.log("  → expenses");
   await sql`
-    INSERT INTO expenses (category, recurrence, amount_egp, description, expense_date, next_due_date, is_active)
+    INSERT INTO expenses (category, expense_type, recurrence, amount_egp, description, expense_date, next_due_date, is_active)
     VALUES
-      ('salary', 'monthly', 12000.00, 'Alice Weber — monthly salary',  ${daysFromNow(-30)}, ${daysFromNow(0)},  true),
-      ('salary', 'monthly',  9000.00, 'Bruno Meier — monthly salary',  ${daysFromNow(-30)}, ${daysFromNow(0)},  true),
-      ('salary', 'monthly',  7000.00, 'Clara Schmidt — monthly salary', ${daysFromNow(-30)}, ${daysFromNow(0)},  true),
-      ('office', 'monthly',  4500.00, 'Office rent — Cairo HQ',        ${daysFromNow(-30)}, ${daysFromNow(0)},  true),
-      ('office', 'once',      850.00, 'Printer cartridges & paper',    ${daysFromNow(-15)}, NULL,               false),
-      ('other',  'once',     2200.00, 'Trade show booth — Cairo Expo', ${daysFromNow(-7)},  NULL,               false)
+      ('salary',  'payroll',   'monthly', 12000.00, 'Alice Weber — monthly salary',  ${daysFromNow(-30)}, ${daysFromNow(0)},  true),
+      ('salary',  'payroll',   'monthly',  9000.00, 'Bruno Meier — monthly salary',  ${daysFromNow(-30)}, ${daysFromNow(0)},  true),
+      ('salary',  'payroll',   'monthly',  7000.00, 'Clara Schmidt — monthly salary', ${daysFromNow(-30)}, ${daysFromNow(0)},  true),
+      ('office',  'operating', 'monthly',  4500.00, 'Office rent — Cairo HQ',        ${daysFromNow(-30)}, ${daysFromNow(0)},  true),
+      ('office',  'operating', 'once',      850.00, 'Printer cartridges & paper',    ${daysFromNow(-15)}, NULL,               false),
+      ('other',   'other',     'once',     2200.00, 'Trade show booth — Cairo Expo', ${daysFromNow(-7)},  NULL,               false)
   `;
 
   console.log("✅  Seed complete.");
