@@ -71,7 +71,7 @@ export function DownloadPDFButton({ invoiceId, iconOnly = false }: Props) {
       className="flex h-10 items-center gap-2 rounded-lg bg-gray-100 px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:opacity-50"
     >
       <ArrowDownTrayIcon className="h-4 w-4" />
-      {loading ? 'جارٍ التحميل...' : 'تحميل PDF'}
+      {loading ? 'Downloading...' : 'PDF'}
     </button>
   );
 }
