@@ -11,7 +11,6 @@ export type OrderStatus =
   | "shipped"
   | "arrived"
   | "stored"
-  | "cancelled";
 
 // Payment state — computed from order_instalment_status values, never stored
 // Reuses the same values as order_instalment_status for consistency

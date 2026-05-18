@@ -20,12 +20,11 @@ function fmtDate(d: string) {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  pending:   'bg-gray-100 text-gray-600',
+  draft:   'bg-gray-100 text-gray-600',
   confirmed: 'bg-blue-50 text-blue-700',
   shipped:   'bg-purple-50 text-purple-700',
   arrived:   'bg-amber-50 text-amber-700',
   stored:    'bg-green-50 text-green-700',
-  cancelled: 'bg-red-50 text-red-500',
 };
 
 const COLS = 'grid-cols-[2fr_1fr_1fr_1fr]';

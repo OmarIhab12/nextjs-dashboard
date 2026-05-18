@@ -49,14 +49,6 @@ export function SupplierSelect({
 }
 
 // ── OrderStatusField ──────────────────────────────────────────
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  draft:   'Draft',
-  confirmed: 'Confirmed',
-  shipped:   'Shipped',
-  arrived:   'Arrived',
-  stored:    'Stored',
-  cancelled: 'Cancelled',
-};
 
 
 export function OrderStatusField({
@@ -64,7 +56,7 @@ export function OrderStatusField({
 }: {
   defaultValue?: OrderStatus;
 }) {
-  const statuses: OrderStatus[] = [ 'draft', 'confirmed', 'shipped', 'arrived', 'stored', 'cancelled' ];
+  const statuses: OrderStatus[] = [ 'draft', 'confirmed', 'shipped', 'arrived', 'stored'];
    return (
       <fieldset className="mb-4">
         <legend className="mb-2 block text-sm font-medium">Invoice status</legend>

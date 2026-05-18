@@ -90,7 +90,6 @@ export function OrderStatusUI({ status }: { status: string }) {
           'bg-purple-500 text-white': status === 'shipped',
           'bg-yellow-500 text-white': status === 'arrived',
           'bg-green-500 text-white': status === 'stored',
-          'bg-red-500 text-white': status === 'cancelled',
         },
       )}
     >
@@ -124,12 +123,12 @@ export function OrderStatusUI({ status }: { status: string }) {
           <ArrowDownOnSquareIcon className="ml-1 w-4 text-white" />
         </>
       ) : null}
-      {status === 'cancelled' ? (
+      {/* {status === 'cancelled' ? (
         <>
           Cancelled
           <XCircleIcon className="ml-1 w-4 text-white" />
         </>
-      ) : null}
+      ) : null} */}
     </span>
   );
 }

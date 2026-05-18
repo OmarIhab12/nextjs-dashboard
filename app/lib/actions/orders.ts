@@ -28,7 +28,7 @@ const OrderSchema = z.object({
   supplier_id: z.string().uuid('Please select a supplier.').optional().or(z.literal('')),
   due_date:    z.string().optional(),
   status:      z.enum(
-    ['pending', 'confirmed', 'shipped', 'arrived', 'stored', 'cancelled'],
+    ['draft', 'confirmed', 'shipped', 'arrived', 'stored'],
     { errorMap: () => ({ message: 'Invalid status.' }) }
   ),
   notes: z.string().optional(),
@@ -83,7 +83,7 @@ export async function createOrderAction(
     await replaceOrderItems(order.id, items);
 
     // Now set status — if stored, trigger increments stock
-    if (status !== 'pending') {
+    if (status !== 'draft') {
       await updateOrder(order.id, { status: status as any });
     }
   } catch (err) {
