@@ -5,8 +5,10 @@ import { getAllCustomers } from '@/app/lib/db/customers';
 import { notFound } from 'next/navigation';
 import { getAllProducts } from '@/app/lib/db/products';
 import { DownloadPDFButton } from '@/app/ui/button';
+import { unstable_noStore as noStore } from 'next/cache';
  
 export const dynamic = 'force-dynamic';
+
 export default async function Page(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const id = params.id;
@@ -16,6 +18,8 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
     getAllCustomers(),
     getAllProducts(),
   ]);
+
+  noStore();
 
    if (!invoice) {
     notFound();

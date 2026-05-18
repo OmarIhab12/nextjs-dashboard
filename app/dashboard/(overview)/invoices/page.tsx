@@ -6,6 +6,7 @@ import { lusitana } from '@/app/ui/fonts';
 import { InvoicesTableSkeleton } from '@/app/ui/skeletons';
 import { Suspense } from 'react';
 import { fetchInvoicesPages } from '@/app/lib/db/invoices';
+import { unstable_noStore as noStore } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
  
@@ -15,6 +16,8 @@ export default async function Page(props: {
     page?: string;
   }>;
 }) {
+    
+  noStore();
 
   const searchParams = await props.searchParams;
   const query = searchParams?.query || '';
