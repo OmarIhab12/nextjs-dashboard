@@ -7,12 +7,15 @@ import sql from "@/app/lib/db";
 export type ExpenseType = 'operating' | 'payroll' | 'tax' | 'other';
 export type PaymentMethod = 'bank_transfer' | 'cash' | 'check' | 'vodafone_cash';
 
+export type WalletCurrency = 'EGP' | 'USD' | 'RMB';
+
 export type Expense = {
   id:             string;
   category:       string;
   expense_type:   ExpenseType;
   recurrence:     "once" | "monthly";
-  amount_egp:     string;
+  amount:         string;
+  currency:       WalletCurrency;
   payment_method: PaymentMethod;
   description:    string | null;
   expense_date:   string;
@@ -25,7 +28,8 @@ export type CreateExpenseInput = {
   category:        string;
   expense_type:    ExpenseType;
   recurrence:      "once" | "monthly";
-  amount_egp:      number;
+  amount:          number;
+  currency?:       WalletCurrency;
   payment_method?: PaymentMethod;
   description?:    string;
   expense_date?:   Date;
@@ -36,7 +40,8 @@ export type CreateExpenseInput = {
 export type UpdateExpenseInput = {
   category?:       string;
   expense_type?:   ExpenseType;
-  amount_egp?:     number;
+  amount?:         number;
+  currency?:       WalletCurrency;
   payment_method?: PaymentMethod;
   description?:    string;
   is_active?:      boolean;
@@ -109,12 +114,13 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
     : null;
 
   const [row] = await sql<Expense[]>`
-    INSERT INTO expenses (category, expense_type, recurrence, amount_egp, payment_method, description, expense_date, next_due_date, is_active)
+    INSERT INTO expenses (category, expense_type, recurrence, amount, currency, payment_method, description, expense_date, next_due_date, is_active)
     VALUES (
       ${input.category},
       ${input.expense_type},
       ${input.recurrence},
-      ${input.amount_egp.toFixed(2)}::numeric,
+      ${input.amount.toFixed(2)}::numeric,
+      ${input.currency ?? 'EGP'}::wallet_currency,
       ${input.payment_method ?? 'cash'},
       ${input.description   ?? null},
       ${expenseDate},
@@ -149,12 +155,12 @@ export async function updateExpense(
   const existing = await getExpenseById(id);
   if (!existing) throw new Error(`Expense ${id} not found`);
 
-  const amountChanged =
-    input.amount_egp !== undefined &&
-    Math.abs(input.amount_egp - Number(existing.amount_egp)) > 0.001;
+  const amountChanged = input.amount !== undefined && Math.abs(input.amount - Number(existing.amount)) > 0.001;
+  const currencyChanged = input.currency !== undefined && input.currency !== existing.currency;
+  const financialChange = amountChanged || currencyChanged;
 
   // ── Case 1: non-financial fields only ────────────────────────
-  if (!amountChanged) {
+  if (!financialChange) {
     const [updated] = await sql<Expense[]>`
       UPDATE expenses SET
         category       = COALESCE(${input.category      ?? null}, category),
@@ -173,12 +179,16 @@ export async function updateExpense(
     return updated;
   }
 
-  // ── Case 2: monthly + amount changed — template only ─────────
-  // New amount takes effect on next firing. No wallet changes now.
+  const newAmount   = input.amount   ?? Number(existing.amount);
+  const newCurrency = input.currency ?? existing.currency;
+
+  // ── Case 2: monthly + financial change — template only ───────
+  // New values take effect on next firing. No wallet changes now.
   if (existing.recurrence === 'monthly') {
     const [updated] = await sql<Expense[]>`
       UPDATE expenses SET
-        amount_egp     = ${input.amount_egp!.toFixed(2)}::numeric,
+        amount         = ${newAmount.toFixed(2)}::numeric,
+        currency       = ${newCurrency}::wallet_currency,
         category       = COALESCE(${input.category      ?? null}, category),
         expense_type   = COALESCE(${input.expense_type  ?? null}::expense_type, expense_type),
         payment_method = COALESCE(${input.payment_method ?? null}::payment_method, payment_method),
@@ -190,9 +200,9 @@ export async function updateExpense(
     return updated;
   }
 
-  // ── Case 3: once + amount changed — wallet reversal ──────────
-  const oldAmount = Number(existing.amount_egp);
-  const newAmount = input.amount_egp!;
+  // ── Case 3: once + financial change — wallet reversal ────────
+  const oldAmount   = Number(existing.amount);
+  const oldCurrency = existing.currency;
 
   return await sql.begin(async (tx) => {
     // Find the original wallet_transaction for this expense
@@ -205,41 +215,46 @@ export async function updateExpense(
       LIMIT 1
     `;
 
-    // Write reversal: EGP comes back in (undoes old amount)
+    // Write reversal: old amount comes back in (undoes old deduction)
     const [reversalTx] = await tx<{ id: string }[]>`
       INSERT INTO wallet_transactions
         (currency, amount, direction, reason, reference_id, corrects_id)
       VALUES
-        ('EGP', ${oldAmount.toFixed(2)}::numeric, 'in', 'expense', ${id},
-         ${originalTx?.id ?? null})
+        (${oldCurrency}::wallet_currency, ${oldAmount.toFixed(2)}::numeric,
+         'in', 'expense', ${id}, ${originalTx?.id ?? null})
       RETURNING id
     `;
 
     await tx`
-      UPDATE company_wallet
-      SET egp_balance = egp_balance + ${oldAmount.toFixed(2)}::numeric,
-          updated_at  = NOW()
+      UPDATE company_wallet SET
+        egp_balance = egp_balance + CASE WHEN ${oldCurrency} = 'EGP' THEN ${oldAmount.toFixed(2)}::numeric ELSE 0 END,
+        usd_balance = usd_balance + CASE WHEN ${oldCurrency} = 'USD' THEN ${oldAmount.toFixed(2)}::numeric ELSE 0 END,
+        rmb_balance = rmb_balance + CASE WHEN ${oldCurrency} = 'RMB' THEN ${oldAmount.toFixed(2)}::numeric ELSE 0 END,
+        updated_at  = NOW()
     `;
 
-    // Write correction: new EGP goes out (applies new amount)
+    // Write correction: new amount goes out (applies new values)
     await tx`
       INSERT INTO wallet_transactions
         (currency, amount, direction, reason, reference_id, corrects_id)
       VALUES
-        ('EGP', ${newAmount.toFixed(2)}::numeric, 'out', 'expense', ${id},
-         ${reversalTx.id})
+        (${newCurrency}::wallet_currency, ${newAmount.toFixed(2)}::numeric,
+         'out', 'expense', ${id}, ${reversalTx.id})
     `;
 
     await tx`
-      UPDATE company_wallet
-      SET egp_balance = egp_balance - ${newAmount.toFixed(2)}::numeric,
-          updated_at  = NOW()
+      UPDATE company_wallet SET
+        egp_balance = egp_balance - CASE WHEN ${newCurrency} = 'EGP' THEN ${newAmount.toFixed(2)}::numeric ELSE 0 END,
+        usd_balance = usd_balance - CASE WHEN ${newCurrency} = 'USD' THEN ${newAmount.toFixed(2)}::numeric ELSE 0 END,
+        rmb_balance = rmb_balance - CASE WHEN ${newCurrency} = 'RMB' THEN ${newAmount.toFixed(2)}::numeric ELSE 0 END,
+        updated_at  = NOW()
     `;
 
     // Update the expense row
     const [updated] = await tx<Expense[]>`
       UPDATE expenses SET
-        amount_egp     = ${newAmount.toFixed(2)}::numeric,
+        amount         = ${newAmount.toFixed(2)}::numeric,
+        currency       = ${newCurrency}::wallet_currency,
         category       = COALESCE(${input.category      ?? null}, category),
         expense_type   = COALESCE(${input.expense_type  ?? null}::expense_type, expense_type),
         payment_method = COALESCE(${input.payment_method ?? null}::payment_method, payment_method),
@@ -275,7 +290,8 @@ export async function fireMonthlyExpense(templateId: string): Promise<Expense> {
     expense_type:   template.expense_type,
     payment_method: template.payment_method,
     recurrence:     'once',
-    amount_egp:     Number(template.amount_egp),
+    amount:         Number(template.amount),
+    currency:       template.currency,
     description:    template.description ?? undefined,
     expense_date:   new Date(),
     is_active:      false,

@@ -21,25 +21,28 @@ export async function createExpenseAction(
   formData: FormData,
 ): Promise<ExpenseFormState> {
   try {
-    const category      = formData.get('category')       as string;
-    const expense_type  = formData.get('expense_type')   as string;
+    const category       = formData.get('category')       as string;
+    const expense_type   = formData.get('expense_type')   as string;
     const payment_method = formData.get('payment_method') as string;
-    const recurrence    = formData.get('recurrence')     as 'once' | 'monthly';
-    const amount_egp    = parseFloat(formData.get('amount_egp') as string);
-    const description   = formData.get('description')    as string;
+    const recurrence     = formData.get('recurrence')     as 'once' | 'monthly';
+    const amount         = parseFloat(formData.get('amount') as string);
+    const currency       = formData.get('currency')       as string || 'EGP';
+    const description    = formData.get('description')    as string;
 
-    if (!category?.trim())            return { error: 'Category is required.' };
-    if (!expense_type)                return { error: 'Expense type is required.' };
-    if (!payment_method)              return { error: 'Payment method is required.' };
-    if (!amount_egp || amount_egp <= 0) return { error: 'Amount must be greater than zero.' };
-    if (!['once', 'monthly'].includes(recurrence)) return { error: 'Invalid recurrence.' };
+    if (!category?.trim())          return { error: 'Category is required.' };
+    if (!expense_type)              return { error: 'Expense type is required.' };
+    if (!payment_method)            return { error: 'Payment method is required.' };
+    if (!amount || amount <= 0)     return { error: 'Amount must be greater than zero.' };
+    if (!['once', 'monthly'].includes(recurrence))          return { error: 'Invalid recurrence.' };
+    if (!['EGP', 'USD', 'RMB'].includes(currency))          return { error: 'Invalid currency.' };
 
     await createExpense({
       category:       category.trim(),
       expense_type:   expense_type   as any,
       payment_method: payment_method as any,
       recurrence,
-      amount_egp,
+      amount,
+      currency:       currency as any,
       description:    description?.trim() || undefined,
     });
 
@@ -58,22 +61,25 @@ export async function updateExpenseAction(
   formData: FormData,
 ): Promise<ExpenseFormState> {
   try {
-    const category      = formData.get('category')       as string;
-    const expense_type  = formData.get('expense_type')   as string;
+    const category       = formData.get('category')       as string;
+    const expense_type   = formData.get('expense_type')   as string;
     const payment_method = formData.get('payment_method') as string;
-    const amount_egp    = parseFloat(formData.get('amount_egp') as string);
-    const description   = formData.get('description')    as string;
+    const amount         = parseFloat(formData.get('amount') as string);
+    const currency       = formData.get('currency')       as string || 'EGP';
+    const description    = formData.get('description')    as string;
 
-    if (!category?.trim())              return { error: 'Category is required.' };
-    if (!expense_type)                  return { error: 'Expense type is required.' };
-    if (!payment_method)                return { error: 'Payment method is required.' };
-    if (!amount_egp || amount_egp <= 0) return { error: 'Amount must be greater than zero.' };
+    if (!category?.trim())      return { error: 'Category is required.' };
+    if (!expense_type)          return { error: 'Expense type is required.' };
+    if (!payment_method)        return { error: 'Payment method is required.' };
+    if (!amount || amount <= 0) return { error: 'Amount must be greater than zero.' };
+    if (!['EGP', 'USD', 'RMB'].includes(currency)) return { error: 'Invalid currency.' };
 
     await updateExpense(id, {
       category:       category.trim(),
       expense_type:   expense_type   as any,
       payment_method: payment_method as any,
-      amount_egp,
+      amount,
+      currency:       currency as any,
       description:    description?.trim() || undefined,
     });
 

@@ -338,14 +338,15 @@ async function schema() {
     )
   `;
 
-  // ── Expenses (EGP outflows) ────────────────────────────────────────────────────
+  // ── Expenses (multi-currency outflows) ────────────────────────────────────────
   await sql`
     CREATE TABLE IF NOT EXISTS expenses (
       id             UUID               PRIMARY KEY DEFAULT uuid_generate_v4(),
       category       VARCHAR(100)       NOT NULL,
       expense_type   expense_type       NOT NULL DEFAULT 'other',
       recurrence     expense_recurrence NOT NULL DEFAULT 'once',
-      amount_egp     NUMERIC(14, 2)     NOT NULL CHECK (amount_egp > 0),
+      amount         NUMERIC(14, 2)     NOT NULL CHECK (amount > 0),
+      currency       wallet_currency    NOT NULL DEFAULT 'EGP',
       payment_method payment_method     NOT NULL DEFAULT 'bank_transfer',
       description    TEXT,
       expense_date   DATE               NOT NULL DEFAULT CURRENT_DATE,
@@ -653,22 +654,26 @@ async function schema() {
       FOR EACH ROW EXECUTE FUNCTION fn_payment_sync_wallet()
   `;
 
-  // ── Wallet: expenses (EGP out) ─────────────────────────────────────────────────
+  // ── Wallet: expenses (multi-currency out) ─────────────────────────────────────
   await sql`
     CREATE OR REPLACE FUNCTION fn_expense_sync_wallet()
     RETURNS TRIGGER LANGUAGE plpgsql AS $$
     BEGIN
       INSERT INTO wallet_transactions
         (currency, amount, direction, reason, reference_id, created_at, account_id)
-      SELECT 'EGP', NEW.amount_egp, 'out', 'expense', NEW.id, NOW(), wa.id
+      SELECT NEW.currency, NEW.amount, 'out', 'expense', NEW.id, NOW(), wa.id
       FROM wallet_accounts wa
-      WHERE wa.currency = 'EGP' AND wa.method = NEW.payment_method
+      WHERE wa.currency = NEW.currency AND wa.method = NEW.payment_method
       LIMIT 1;
 
-      UPDATE wallet_accounts SET balance = balance - NEW.amount_egp, updated_at = NOW()
-      WHERE currency = 'EGP' AND method = NEW.payment_method;
+      UPDATE wallet_accounts SET balance = balance - NEW.amount, updated_at = NOW()
+      WHERE currency = NEW.currency AND method = NEW.payment_method;
 
-      UPDATE company_wallet SET egp_balance = egp_balance - NEW.amount_egp, updated_at = NOW();
+      UPDATE company_wallet SET
+        egp_balance = egp_balance - CASE WHEN NEW.currency = 'EGP' THEN NEW.amount ELSE 0 END,
+        usd_balance = usd_balance - CASE WHEN NEW.currency = 'USD' THEN NEW.amount ELSE 0 END,
+        rmb_balance = rmb_balance - CASE WHEN NEW.currency = 'RMB' THEN NEW.amount ELSE 0 END,
+        updated_at  = NOW();
 
       RETURN NULL;
     END;

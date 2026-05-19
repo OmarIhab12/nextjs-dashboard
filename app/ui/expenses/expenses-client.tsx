@@ -82,7 +82,8 @@ type EditState = {
   category:       string;
   expense_type:   ExpenseType;
   payment_method: string;
-  amount_egp:     string;
+  amount:         string;
+  currency:       'EGP' | 'USD' | 'RMB';
   description:    string;
 };
 
@@ -93,13 +94,14 @@ function toEditState(e: Expense): EditState {
     category:       e.category,
     expense_type:   e.expense_type,
     payment_method: e.payment_method,
-    amount_egp:     String(e.amount_egp),
+    amount:         String(e.amount),
+    currency:       e.currency ?? 'EGP',
     description:    e.description ?? '',
   };
 }
 
 function emptyEditState(): EditState {
-  return { category: '', expense_type: 'other', payment_method: 'cash', amount_egp: '', description: '' };
+  return { category: '', expense_type: 'other', payment_method: 'cash', amount: '', currency: 'EGP', description: '' };
 }
 
 // ── EditInput ─────────────────────────────────────────────────────────────────
@@ -176,7 +178,7 @@ function ExpenseTable({
     const blank: ExpenseRowEntry = {
       _key: key, id: '', mode: 'new',
       category: '', expense_type: 'other', payment_method: 'cash', recurrence,
-      amount_egp: '0', description: null,
+      amount: '0', currency: 'EGP', description: null,
       expense_date: new Date().toISOString(),
       next_due_date: null, is_active: true, created_at: '',
     };
@@ -200,8 +202,8 @@ function ExpenseTable({
   };
 
   const validate = (key: string, state: EditState): boolean => {
-    if (!state.category.trim())                 { setError(key, 'Category is required.'); return false; }
-    if (!state.amount_egp || parseFloat(state.amount_egp) <= 0) {
+    if (!state.category.trim()) { setError(key, 'Category is required.'); return false; }
+    if (!state.amount || parseFloat(state.amount) <= 0) {
       setError(key, 'Amount must be greater than zero.'); return false;
     }
     return true;
@@ -216,7 +218,8 @@ function ExpenseTable({
       fd.set('expense_type',   state.expense_type);
       fd.set('payment_method', state.payment_method);
       fd.set('recurrence',     recurrence);
-      fd.set('amount_egp',     state.amount_egp);
+      fd.set('amount',         state.amount);
+      fd.set('currency',       state.currency);
       fd.set('description',    state.description);
       const result = await createExpenseAction(fd);
       if (result.error) { setError(row._key, result.error); return; }
@@ -234,15 +237,16 @@ function ExpenseTable({
       fd.set('category',       state.category);
       fd.set('expense_type',   state.expense_type);
       fd.set('payment_method', state.payment_method);
-      fd.set('amount_egp',     state.amount_egp);
+      fd.set('amount',         state.amount);
+      fd.set('currency',       state.currency);
       fd.set('description',    state.description);
       const result = await updateExpenseAction(row.id, fd);
       if (result.error) { setError(row._key, result.error); return; }
       setRows((prev) => prev.map((r) =>
         r._key === row._key
           ? { ...r, category: state.category, expense_type: state.expense_type,
-              amount_egp: state.amount_egp, description: state.description || null,
-              mode: 'view' }
+              amount: state.amount, currency: state.currency,
+              description: state.description || null, mode: 'view' }
           : r
       ));
       clearError(row._key);
@@ -269,7 +273,7 @@ function ExpenseTable({
           <span>Category</span>
           <span>Type</span>
           <span>Via</span>
-          <span>Amount (EGP)</span>
+          <span>Amount</span>
           <span>Date</span>
           {showNextDue && <span>Next Due</span>}
           <div className="flex justify-end">
@@ -351,17 +355,25 @@ function ExpenseTable({
 
                   {/* Amount */}
                   {isEditing ? (
-                    <div className="relative">
-                      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">E£</span>
+                    <div className="flex gap-1">
+                      <select
+                        value={state.currency}
+                        onChange={(e) => setEdit(row._key, { currency: e.target.value as 'EGP' | 'USD' | 'RMB' })}
+                        className="rounded-md border border-gray-300 bg-white py-1 px-1.5 text-xs outline-none focus:border-gray-500 w-16"
+                      >
+                        <option value="EGP">EGP</option>
+                        <option value="USD">USD</option>
+                        <option value="RMB">RMB</option>
+                      </select>
                       <EditInput
-                        value={state.amount_egp}
-                        onChange={(v) => setEdit(row._key, { amount_egp: v })}
-                        type="number" placeholder="0.00" className="pl-10"
+                        value={state.amount}
+                        onChange={(v) => setEdit(row._key, { amount: v })}
+                        type="number" placeholder="0.00"
                       />
                     </div>
                   ) : (
                     <span className="text-sm tabular-nums text-gray-700">
-                      E£ {fmt(Number(row.amount_egp))}
+                      {row.currency === 'USD' ? '$' : row.currency === 'RMB' ? '¥' : 'E£'} {fmt(Number(row.amount))}
                     </span>
                   )}
 
@@ -438,8 +450,14 @@ export default function ExpensesClient({
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('once');
 
-  const totalOnce    = once.reduce((s, e) => s + Number(e.amount_egp), 0);
-  const totalMonthly = monthly.filter((e) => e.is_active).reduce((s, e) => s + Number(e.amount_egp), 0);
+  const sumByCurrency = (list: Expense[]) =>
+    list.reduce((acc, e) => {
+      acc[e.currency] = (acc[e.currency] ?? 0) + Number(e.amount);
+      return acc;
+    }, {} as Record<string, number>);
+
+  const totalsOnce    = sumByCurrency(once);
+  const totalsMonthly = sumByCurrency(monthly.filter((e) => e.is_active));
 
   return (
     <div className="space-y-4">
@@ -456,13 +474,17 @@ export default function ExpensesClient({
       </div>
 
       {/* ── Summary cards ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="flex flex-wrap gap-3">
         {activeTab === 'once' ? (
           <>
-            <div className="rounded-md border border-gray-100 bg-gray-50 px-4 py-3">
-              <p className="text-xs text-gray-400">Total one-off</p>
-              <p className="text-sm font-semibold tabular-nums text-gray-800">EGP {fmt(totalOnce)}</p>
-            </div>
+            {(Object.entries(totalsOnce) as [string, number][]).map(([cur, total]) => (
+              <div key={cur} className="rounded-md border border-gray-100 bg-gray-50 px-4 py-3">
+                <p className="text-xs text-gray-400">Total one-off ({cur})</p>
+                <p className="text-sm font-semibold tabular-nums text-gray-800">
+                  {cur === 'USD' ? '$' : cur === 'RMB' ? '¥' : 'E£'} {fmt(total)}
+                </p>
+              </div>
+            ))}
             <div className="rounded-md border border-gray-100 bg-gray-50 px-4 py-3">
               <p className="text-xs text-gray-400">Count</p>
               <p className="text-sm font-semibold text-gray-800">{once.length}</p>
@@ -470,10 +492,14 @@ export default function ExpensesClient({
           </>
         ) : (
           <>
-            <div className="rounded-md border border-gray-100 bg-gray-50 px-4 py-3">
-              <p className="text-xs text-gray-400">Monthly total (active)</p>
-              <p className="text-sm font-semibold tabular-nums text-gray-800">EGP {fmt(totalMonthly)}</p>
-            </div>
+            {(Object.entries(totalsMonthly) as [string, number][]).map(([cur, total]) => (
+              <div key={cur} className="rounded-md border border-gray-100 bg-gray-50 px-4 py-3">
+                <p className="text-xs text-gray-400">Monthly total — {cur} (active)</p>
+                <p className="text-sm font-semibold tabular-nums text-gray-800">
+                  {cur === 'USD' ? '$' : cur === 'RMB' ? '¥' : 'E£'} {fmt(total)}
+                </p>
+              </div>
+            ))}
             <div className="rounded-md border border-gray-100 bg-gray-50 px-4 py-3">
               <p className="text-xs text-gray-400">Active recurring</p>
               <p className="text-sm font-semibold text-gray-800">{monthly.filter((e) => e.is_active).length}</p>
