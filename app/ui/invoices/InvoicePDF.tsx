@@ -262,7 +262,7 @@ export function InvoicePDF({ invoice }: { invoice: InvoicePDFData }) {
         {/* ── Customer & Date row (RTL: name on right, date on left) ── */}
         <View style={s.metaRow}>
           <Text style={s.metaText}>
-            {invoice.customerName}
+            {ar(invoice.customerName)}
             <Text style={s.metaLabel}>{ar('  : الاسم ')}</Text>
           </Text>
         </View>
@@ -303,7 +303,7 @@ export function InvoicePDF({ invoice }: { invoice: InvoicePDFData }) {
             <Text style={[s.cellText, s.colCode]}>
               {item.sku ? `#${item.sku}` : '-'}
             </Text>
-            <Text style={[s.cellText, s.colName]}>{item.productName}</Text>
+            <Text style={[s.cellText, s.colName]}>{ar(item.productName)}</Text>
             <Text style={[s.cellText, s.colQty]}>{item.quantity}</Text>
             <Text style={[s.cellText, s.colPrice]}>{fmt(item.unitPrice)}</Text>
             <Text style={[s.cellText, s.colTotal]}>{fmt(item.lineTotal)}</Text>
