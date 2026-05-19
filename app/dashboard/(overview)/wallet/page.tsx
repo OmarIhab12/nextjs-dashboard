@@ -1,35 +1,32 @@
 // app/dashboard/(overview)/wallet/page.tsx
 
-import { lusitana }  from '@/app/ui/fonts';
-import { getWallet } from '@/app/lib/db/wallet';
-import WalletClient  from '@/app/ui/wallet/wallet-client';
+import { lusitana }          from '@/app/ui/fonts';
+import { getWallet }         from '@/app/lib/db/wallet';
+import { getWalletAccounts, getRecentTransfers } from '@/app/lib/db/wallet-accounts';
+import WalletClient          from '@/app/ui/wallet/wallet-client';
 
 async function getLiveRate(): Promise<{ rate: number; updatedAt: string } | null> {
   try {
     const apiKey = process.env.EXCHANGE_RATE_API_KEY;
     if (!apiKey) return null;
-
     const res = await fetch(
       `https://v6.exchangerate-api.com/v6/${apiKey}/latest/USD`,
-      { next: { revalidate: 3600 } } // cache for 1 hour, saves API quota
+      { next: { revalidate: 3600 } }
     );
-
     if (!res.ok) return null;
     const data = await res.json();
     if (data.result !== 'success') return null;
-
-    return {
-      rate:      data.conversion_rates.EGP,
-      updatedAt: data.time_last_update_utc,
-    };
+    return { rate: data.conversion_rates.EGP, updatedAt: data.time_last_update_utc };
   } catch {
     return null;
   }
 }
 
 export default async function Page() {
-  const [wallet, rateData] = await Promise.all([
+  const [wallet, accounts, recentTransfers, rateData] = await Promise.all([
     getWallet(),
+    getWalletAccounts(),
+    getRecentTransfers(5),
     getLiveRate(),
   ]);
 
@@ -41,6 +38,8 @@ export default async function Page() {
       <WalletClient
         egpBalance={Number(wallet.egp_balance)}
         usdBalance={Number(wallet.usd_balance)}
+        accounts={accounts}
+        recentTransfers={recentTransfers}
         liveRate={rateData?.rate ?? null}
         rateUpdatedAt={rateData?.updatedAt ?? null}
       />

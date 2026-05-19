@@ -39,3 +39,30 @@ export async function createConversionAction(
     return { error: 'Failed to record conversion.' };
   }
 }
+
+export async function createTransferAction(
+  formData: FormData,
+): Promise<{ error: string | null }> {
+  try {
+    const currency        = formData.get('currency')        as 'EGP' | 'USD';
+    const amount          = parseFloat(formData.get('amount') as string);
+    const from_account_id = formData.get('from_account_id') as string;
+    const to_account_id   = formData.get('to_account_id')   as string;
+    const notes           = (formData.get('notes') as string)?.trim() || undefined;
+
+    if (!amount || amount <= 0)            return { error: 'Amount must be greater than zero.' };
+    if (!from_account_id)                  return { error: 'Select source account.' };
+    if (!to_account_id)                    return { error: 'Select destination account.' };
+    if (from_account_id === to_account_id) return { error: 'Source and destination must be different.' };
+    if (!['EGP', 'USD'].includes(currency)) return { error: 'Invalid currency.' };
+
+    const { createWalletTransfer } = await import('@/app/lib/db/wallet-accounts');
+    await createWalletTransfer({ currency, amount, from_account_id, to_account_id, notes });
+
+    revalidatePath('/dashboard/wallet');
+    return { error: null };
+  } catch (err) {
+    console.error('createTransferAction:', err);
+    return { error: 'Failed to record transfer.' };
+  }
+}

@@ -15,7 +15,7 @@ async function schema() {
   await sql`DO $$ BEGIN CREATE TYPE invoice_status     AS ENUM ('draft', 'confirmed', 'shipped');      EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE discount_type      AS ENUM ('percentage', 'amount');                            EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
   await sql`DO $$ BEGIN CREATE TYPE payment_status     AS ENUM ('pending', 'partial', 'paid', 'overdue');           EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
-  await sql`DO $$ BEGIN CREATE TYPE payment_method     AS ENUM ('bank_transfer', 'cash', 'card', 'check', 'vodafone_cash', 'other'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+  await sql`DO $$ BEGIN CREATE TYPE payment_method     AS ENUM ('bank_transfer', 'cash', 'check', 'vodafone_cash'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
 
   // — Financial —
   await sql`DO $$ BEGIN CREATE TYPE wallet_currency        AS ENUM ('EGP', 'USD');                                              EXCEPTION WHEN duplicate_object THEN NULL; END $$`;

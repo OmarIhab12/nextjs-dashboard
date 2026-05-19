@@ -1,6 +1,6 @@
 import sql from "../db";
 
-export type PaymentMethod = "bank_transfer" | "cash" | "card" | "check" | "other";
+export type PaymentMethod = "bank_transfer" | "cash" | "check" | "vodafone_cash";
 
 export interface Payment {
   id: string;

@@ -1,4 +1,5 @@
 import sql from "../db";
+import { PaymentMethod } from "./payments";
 
 export interface Customer {
   id: string;
@@ -37,7 +38,7 @@ export type CustomerPaymentSummary = {
   id: string;
   amount: string;
   paid_at: Date;
-  payment_method: string;
+  payment_method: PaymentMethod;
   invoice_ids: string[]; // which invoices this payment was applied to
 };
  

@@ -16,6 +16,7 @@ import type { Expense, ExpenseType } from '@/app/lib/db/expenses';
 import {
   TableContainer, TableRows, TableActions, TableEmpty,
 } from '@/app/ui/table-components';
+import { ExpensesTypeUI, PayementMethodUI } from '../shared/status';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -42,39 +43,63 @@ const EXPENSE_TYPES: { value: ExpenseType; label: string; color: string }[] = [
   { value: 'other',     label: 'Other',     color: 'bg-gray-100 text-gray-600'   },
 ];
 
-function ExpenseTypeBadge({ type }: { type: ExpenseType }) {
-  const config = EXPENSE_TYPES.find((t) => t.value === type) ?? EXPENSE_TYPES[4];
+const PAYMENT_METHODS: { value: string; label: string }[] = [
+  { value: 'bank_transfer', label: 'Bank'          },
+  { value: 'cash',          label: 'Cash'          },
+  { value: 'check',         label: 'Check'         },
+  { value: 'vodafone_cash', label: 'Vodafone Cash' },
+];
+
+function MethodBadge({ method }: { method: string }) {
+  const colors: Record<string, string> = {
+    bank_transfer: 'bg-blue-50 text-blue-700',
+    cash:          'bg-green-50 text-green-700',
+    check:         'bg-purple-50 text-purple-700',
+    vodafone_cash: 'bg-red-50 text-red-600',
+  };
+  const label = PAYMENT_METHODS.find((m) => m.value === method)?.label ?? method;
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${config.color}`}>
-      {config.label}
+    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${colors[method] ?? 'bg-gray-100 text-gray-500'}`}>
+      {label}
     </span>
   );
 }
+
+// function ExpenseTypeBadge({ type }: { type: ExpenseType }) {
+//   const config = EXPENSE_TYPES.find((t) => t.value === type) ?? EXPENSE_TYPES[4];
+//   return (
+//     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${config.color}`}>
+//       {config.label}
+//     </span>
+//   );
+// }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type RowMode = 'view' | 'edit' | 'new';
 
 type EditState = {
-  category:     string;
-  expense_type: ExpenseType;
-  amount_egp:   string;
-  description:  string;
+  category:       string;
+  expense_type:   ExpenseType;
+  payment_method: string;
+  amount_egp:     string;
+  description:    string;
 };
 
 type ExpenseRowEntry = Expense & { _key: string; mode: RowMode };
 
 function toEditState(e: Expense): EditState {
   return {
-    category:     e.category,
-    expense_type: e.expense_type,
-    amount_egp:   String(e.amount_egp),
-    description:  e.description ?? '',
+    category:       e.category,
+    expense_type:   e.expense_type,
+    payment_method: e.payment_method,
+    amount_egp:     String(e.amount_egp),
+    description:    e.description ?? '',
   };
 }
 
 function emptyEditState(): EditState {
-  return { category: '', expense_type: 'other', amount_egp: '', description: '' };
+  return { category: '', expense_type: 'other', payment_method: 'cash', amount_egp: '', description: '' };
 }
 
 // ── EditInput ─────────────────────────────────────────────────────────────────
@@ -126,8 +151,8 @@ function ExpenseTable({
 }) {
   const showNextDue = recurrence === 'monthly';
   const COLS = showNextDue
-    ? 'grid-cols-[2fr_1fr_1fr_1fr_1fr_5rem]'
-    : 'grid-cols-[2fr_1fr_1fr_1fr_5rem]';
+    ? 'grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_5rem]'
+    : 'grid-cols-[2fr_1fr_1fr_1fr_1fr_5rem]';
 
   const [rows,       setRows]       = useState<ExpenseRowEntry[]>(
     expenses.map((e) => ({ ...e, _key: e.id, mode: 'view' as RowMode }))
@@ -150,7 +175,7 @@ function ExpenseTable({
     const key = uid();
     const blank: ExpenseRowEntry = {
       _key: key, id: '', mode: 'new',
-      category: '', expense_type: 'other', recurrence,
+      category: '', expense_type: 'other', payment_method: 'cash', recurrence,
       amount_egp: '0', description: null,
       expense_date: new Date().toISOString(),
       next_due_date: null, is_active: true, created_at: '',
@@ -187,11 +212,12 @@ function ExpenseTable({
     if (!validate(row._key, state)) return;
     startTransition(async () => {
       const fd = new FormData();
-      fd.set('category',     state.category);
-      fd.set('expense_type', state.expense_type);
-      fd.set('recurrence',   recurrence);
-      fd.set('amount_egp',   state.amount_egp);
-      fd.set('description',  state.description);
+      fd.set('category',       state.category);
+      fd.set('expense_type',   state.expense_type);
+      fd.set('payment_method', state.payment_method);
+      fd.set('recurrence',     recurrence);
+      fd.set('amount_egp',     state.amount_egp);
+      fd.set('description',    state.description);
       const result = await createExpenseAction(fd);
       if (result.error) { setError(row._key, result.error); return; }
       setRows((prev) => prev.filter((r) => r._key !== row._key));
@@ -205,10 +231,11 @@ function ExpenseTable({
     if (!validate(row._key, state)) return;
     startTransition(async () => {
       const fd = new FormData();
-      fd.set('category',     state.category);
-      fd.set('expense_type', state.expense_type);
-      fd.set('amount_egp',   state.amount_egp);
-      fd.set('description',  state.description);
+      fd.set('category',       state.category);
+      fd.set('expense_type',   state.expense_type);
+      fd.set('payment_method', state.payment_method);
+      fd.set('amount_egp',     state.amount_egp);
+      fd.set('description',    state.description);
       const result = await updateExpenseAction(row.id, fd);
       if (result.error) { setError(row._key, result.error); return; }
       setRows((prev) => prev.map((r) =>
@@ -241,6 +268,7 @@ function ExpenseTable({
         <div className={`grid ${COLS} gap-2 border-b border-gray-100 bg-gray-50 px-3 py-2 text-xs font-medium uppercase tracking-wide text-gray-400`}>
           <span>Category</span>
           <span>Type</span>
+          <span>Via</span>
           <span>Amount (EGP)</span>
           <span>Date</span>
           {showNextDue && <span>Next Due</span>}
@@ -299,7 +327,26 @@ function ExpenseTable({
                       onChange={(v) => setEdit(row._key, { expense_type: v })}
                     />
                   ) : (
-                    <ExpenseTypeBadge type={row.expense_type} />
+                    <div className="ml-1">                
+                      <ExpensesTypeUI type={row.expense_type} />
+                    </div>
+                  )}
+
+                  {/* Payment method */}
+                  {isEditing ? (
+                    <select
+                      value={state.payment_method}
+                      onChange={(e) => setEdit(row._key, { payment_method: e.target.value })}
+                      className="block w-full rounded-md border border-gray-300 bg-white py-1 px-2 text-sm outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500"
+                    >
+                      {PAYMENT_METHODS.map((m) => (
+                        <option key={m.value} value={m.value}>{m.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="ml-1">  
+                    <PayementMethodUI payment_method={row.payment_method} />
+                    </div>
                   )}
 
                   {/* Amount */}

@@ -2,6 +2,7 @@
 // Mirrors the invoice payments pattern for supplier order payments (USD).
 
 import sql from "@/app/lib/db";
+import { PaymentMethod } from "./payments";
 // import { syncOrderInstalmentStatuses } from "./orders";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -10,7 +11,7 @@ export type OrderPayment = {
   id:             string;
   order_id:       string;
   amount_usd:     string;
-  payment_method: string;
+  payment_method: PaymentMethod;
   reference:      string | null;
   notes:          string | null;
   paid_at:        string;
@@ -25,7 +26,7 @@ export type OrderPaymentAllocation = {
 export type CreateOrderPaymentInput = {
   order_id:       string;
   amount_usd:     number;
-  payment_method: "bank_transfer" | "cash" | "card" | "check" | "vodafone_cash" | "other";
+  payment_method: PaymentMethod;
   reference?:     string;
   notes?:         string;
   paid_at?:       Date;
@@ -34,7 +35,7 @@ export type CreateOrderPaymentInput = {
 
 export type UpdateOrderPaymentInput = {
   amount_usd?:     number;
-  payment_method?: "bank_transfer" | "cash" | "card" | "check" | "vodafone_cash" | "other";
+  payment_method?: PaymentMethod;
   allocations?:    OrderPaymentAllocation[]; // required if amount_usd changes
   reference?:      string;
   notes?:          string;
@@ -381,3 +382,4 @@ export async function buildOrderPaymentAllocations(
 
   return allocations;
 }
+

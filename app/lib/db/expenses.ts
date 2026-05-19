@@ -5,38 +5,42 @@ import sql from "@/app/lib/db";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type ExpenseType = 'operating' | 'payroll' | 'tax' | 'other';
+export type PaymentMethod = 'bank_transfer' | 'cash' | 'check' | 'vodafone_cash';
 
 export type Expense = {
-  id:            string;
-  category:      string;
-  expense_type:  ExpenseType;
-  recurrence:    "once" | "monthly";
-  amount_egp:    string;
-  description:   string | null;
-  expense_date:  string;
-  next_due_date: string | null;
-  is_active:     boolean;
-  created_at:    string;
+  id:             string;
+  category:       string;
+  expense_type:   ExpenseType;
+  recurrence:     "once" | "monthly";
+  amount_egp:     string;
+  payment_method: PaymentMethod;
+  description:    string | null;
+  expense_date:   string;
+  next_due_date:  string | null;
+  is_active:      boolean;
+  created_at:     string;
 };
 
 export type CreateExpenseInput = {
-  category:      string;
-  expense_type:  ExpenseType;
-  recurrence:    "once" | "monthly";
-  amount_egp:    number;
-  description?:  string;
-  expense_date?: Date;
-  next_due_date?: Date;
-  is_active?:    boolean;
+  category:        string;
+  expense_type:    ExpenseType;
+  recurrence:      "once" | "monthly";
+  amount_egp:      number;
+  payment_method?: PaymentMethod;
+  description?:    string;
+  expense_date?:   Date;
+  next_due_date?:  Date;
+  is_active?:      boolean;
 };
 
 export type UpdateExpenseInput = {
-  category?:      string;
-  expense_type?:  ExpenseType;
-  amount_egp?:    number;
-  description?:   string;
-  is_active?:     boolean;
-  next_due_date?: Date | null;
+  category?:       string;
+  expense_type?:   ExpenseType;
+  amount_egp?:     number;
+  payment_method?: PaymentMethod;
+  description?:    string;
+  is_active?:      boolean;
+  next_due_date?:  Date | null;
 };
 
 // ── Queries ───────────────────────────────────────────────────────────────────
@@ -105,12 +109,13 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
     : null;
 
   const [row] = await sql<Expense[]>`
-    INSERT INTO expenses (category, expense_type, recurrence, amount_egp, description, expense_date, next_due_date, is_active)
+    INSERT INTO expenses (category, expense_type, recurrence, amount_egp, payment_method, description, expense_date, next_due_date, is_active)
     VALUES (
       ${input.category},
       ${input.expense_type},
       ${input.recurrence},
       ${input.amount_egp.toFixed(2)}::numeric,
+      ${input.payment_method ?? 'cash'},
       ${input.description   ?? null},
       ${expenseDate},
       ${nextDue},
@@ -152,11 +157,12 @@ export async function updateExpense(
   if (!amountChanged) {
     const [updated] = await sql<Expense[]>`
       UPDATE expenses SET
-        category      = COALESCE(${input.category      ?? null}, category),
-        expense_type  = COALESCE(${input.expense_type  ?? null}::expense_type, expense_type),
-        description   = COALESCE(${input.description   ?? null}, description),
-        is_active     = COALESCE(${input.is_active     ?? null}, is_active),
-        next_due_date = CASE
+        category       = COALESCE(${input.category      ?? null}, category),
+        expense_type   = COALESCE(${input.expense_type  ?? null}::expense_type, expense_type),
+        payment_method = COALESCE(${input.payment_method ?? null}::payment_method, payment_method),
+        description    = COALESCE(${input.description   ?? null}, description),
+        is_active      = COALESCE(${input.is_active     ?? null}, is_active),
+        next_due_date  = CASE
           WHEN ${input.next_due_date !== undefined ? 'true' : 'false'} = 'true'
           THEN ${input.next_due_date ?? null}
           ELSE next_due_date
@@ -172,11 +178,12 @@ export async function updateExpense(
   if (existing.recurrence === 'monthly') {
     const [updated] = await sql<Expense[]>`
       UPDATE expenses SET
-        amount_egp    = ${input.amount_egp!.toFixed(2)}::numeric,
-        category      = COALESCE(${input.category     ?? null}, category),
-        expense_type  = COALESCE(${input.expense_type ?? null}::expense_type, expense_type),
-        description   = COALESCE(${input.description  ?? null}, description),
-        is_active     = COALESCE(${input.is_active    ?? null}, is_active)
+        amount_egp     = ${input.amount_egp!.toFixed(2)}::numeric,
+        category       = COALESCE(${input.category      ?? null}, category),
+        expense_type   = COALESCE(${input.expense_type  ?? null}::expense_type, expense_type),
+        payment_method = COALESCE(${input.payment_method ?? null}::payment_method, payment_method),
+        description    = COALESCE(${input.description   ?? null}, description),
+        is_active      = COALESCE(${input.is_active     ?? null}, is_active)
       WHERE id = ${id}
       RETURNING *
     `;
@@ -232,11 +239,12 @@ export async function updateExpense(
     // Update the expense row
     const [updated] = await tx<Expense[]>`
       UPDATE expenses SET
-        amount_egp   = ${newAmount.toFixed(2)}::numeric,
-        category     = COALESCE(${input.category     ?? null}, category),
-        expense_type = COALESCE(${input.expense_type ?? null}::expense_type, expense_type),
-        description  = COALESCE(${input.description  ?? null}, description),
-        is_active    = COALESCE(${input.is_active    ?? null}, is_active)
+        amount_egp     = ${newAmount.toFixed(2)}::numeric,
+        category       = COALESCE(${input.category      ?? null}, category),
+        expense_type   = COALESCE(${input.expense_type  ?? null}::expense_type, expense_type),
+        payment_method = COALESCE(${input.payment_method ?? null}::payment_method, payment_method),
+        description    = COALESCE(${input.description   ?? null}, description),
+        is_active      = COALESCE(${input.is_active     ?? null}, is_active)
       WHERE id = ${id}
       RETURNING *
     `;
@@ -263,13 +271,14 @@ export async function fireMonthlyExpense(templateId: string): Promise<Expense> {
   if (!template.is_active) throw new Error("Expense is inactive");
 
   const newExpense = await createExpense({
-    category:     template.category,
-    expense_type: template.expense_type,
-    recurrence:   'once',
-    amount_egp:   Number(template.amount_egp),
-    description:  template.description ?? undefined,
-    expense_date: new Date(),
-    is_active:    false,
+    category:       template.category,
+    expense_type:   template.expense_type,
+    payment_method: template.payment_method,
+    recurrence:     'once',
+    amount_egp:     Number(template.amount_egp),
+    description:    template.description ?? undefined,
+    expense_date:   new Date(),
+    is_active:      false,
   });
 
   const nextDue = addOneMonth(new Date(template.next_due_date ?? new Date()));

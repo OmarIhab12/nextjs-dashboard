@@ -7,22 +7,21 @@ import { useState, useTransition } from 'react';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { TableContainer, TableRows, TableEmpty } from '@/app/ui/table-components';
 import { fmt, fmtDate } from '@/app/ui/shared/transaction-list';
+import { PayementMethodUI } from './status';
+import { PaymentMethod } from "@/app/lib/db/payments";
 
-export type PaymentMethod = 'bank_transfer' | 'cash' | 'card' | 'check' | 'vodafone_cash' | 'other';
 
 export const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'bank_transfer', label: 'Bank Transfer' },
   { value: 'cash',          label: 'Cash'          },
-  { value: 'card',          label: 'Card'          },
   { value: 'check',         label: 'Check'         },
   { value: 'vodafone_cash', label: 'Vodafone Cash' },
-  { value: 'other',         label: 'Other'         },
 ];
 
 export type PaymentRow = {
   id:             string;
   amount:         string | number;
-  payment_method: string | null;
+  payment_method: PaymentMethod;
   paid_at:        Date | string;
 };
 
@@ -196,7 +195,9 @@ export default function PaymentPanel({
             <div key={p.id} className={`grid ${COLS} items-center gap-2 px-3 py-2 hover:bg-gray-50/50 transition-colors`}>
               <span className="text-sm text-gray-500">{fmtDate(p.paid_at)}</span>
               <span className="text-sm text-gray-500 capitalize">
-                {p.payment_method?.replace(/_/g, ' ') ?? '—'}
+                <div className="ml-1">  
+                  <PayementMethodUI payment_method={p.payment_method} />
+                </div>
               </span>
               <span className="text-right text-sm font-medium tabular-nums text-gray-800">
                 {currencySymbol}{fmt(Number(p.amount))}
