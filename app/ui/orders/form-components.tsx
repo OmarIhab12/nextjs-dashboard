@@ -91,8 +91,8 @@ export function OrderTotals({ total }: { total: number }) {
   return (
     <div className="mt-4 rounded-md border border-gray-200 bg-white p-4">
       <div className="flex justify-between border-t border-gray-100 pt-2 text-base font-semibold text-gray-900">
-        <span>Total (USD)</span>
-        <span className="tabular-nums">${fmt(total)}</span>
+        <span>Total (RMB)</span>
+        <span className="tabular-nums">¥{fmt(total)}</span>
       </div>
     </div>
   );

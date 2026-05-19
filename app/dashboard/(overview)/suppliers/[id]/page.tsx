@@ -30,8 +30,8 @@ export default async function SupplierPage({
     (a, b) => new Date(b.paid_at).getTime() - new Date(a.paid_at).getTime(),
   );
 
-  const totalOrdered = orders.reduce((s, o) => s + Number(o.total_usd), 0);
-  const totalPaid    = orders.reduce((s, o) => s + Number(o.paid_usd),  0);
+  const totalOrdered = orders.reduce((s, o) => s + Number(o.total_rmb), 0);
+  const totalPaid    = orders.reduce((s, o) => s + Number(o.paid_rmb),  0);
   const totalOwed    = totalOrdered - totalPaid;
 
   return (

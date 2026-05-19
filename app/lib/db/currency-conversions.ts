@@ -4,21 +4,26 @@ import sql from "@/app/lib/db";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export type ConversionDirection =
+  | 'egp_to_usd' | 'usd_to_egp'
+  | 'egp_to_rmb' | 'rmb_to_egp'
+  | 'usd_to_rmb' | 'rmb_to_usd';
+
 export type CurrencyConversion = {
   id:            string;
-  egp_amount:    string;
-  usd_amount:    string;
+  from_amount:   string;
+  to_amount:     string;
   exchange_rate: string;
-  direction:     'egp_to_usd' | 'usd_to_egp';
+  direction:     ConversionDirection;
   notes:         string | null;
   converted_at:  string;
 };
 
 export type CreateConversionInput = {
-  egp_amount:    number;
-  usd_amount:    number;
+  from_amount:   number;
+  to_amount:     number;
   exchange_rate: number;
-  direction:     'egp_to_usd' | 'usd_to_egp';
+  direction:     ConversionDirection;
   notes?:        string;
   converted_at?: Date;
 };
@@ -65,25 +70,25 @@ export async function getConversionCount(query = ''): Promise<number> {
  * Returns a summary of all conversions: total EGP spent and total USD received.
  */
 export async function getConversionSummary(): Promise<{
-  total_egp_spent: number;
-  total_usd_received: number;
-  count: number;
+  total_from: number;
+  total_to:   number;
+  count:      number;
 }> {
   const [row] = await sql<{
-    total_egp: string;
-    total_usd: string;
-    count:     string;
+    total_from: string;
+    total_to:   string;
+    count:      string;
   }[]>`
     SELECT
-      COALESCE(SUM(egp_amount), 0)::text AS total_egp,
-      COALESCE(SUM(usd_amount), 0)::text AS total_usd,
-      COUNT(*)::text                     AS count
+      COALESCE(SUM(from_amount), 0)::text AS total_from,
+      COALESCE(SUM(to_amount),   0)::text AS total_to,
+      COUNT(*)::text                      AS count
     FROM currency_conversions
   `;
   return {
-    total_egp_spent:    Number(row.total_egp),
-    total_usd_received: Number(row.total_usd),
-    count:              parseInt(row.count),
+    total_from: Number(row.total_from),
+    total_to:   Number(row.total_to),
+    count:      parseInt(row.count),
   };
 }
 
@@ -103,10 +108,10 @@ export async function createConversion(
   input: CreateConversionInput,
 ): Promise<CurrencyConversion> {
   const [row] = await sql<CurrencyConversion[]>`
-    INSERT INTO currency_conversions (egp_amount, usd_amount, exchange_rate, direction, notes, converted_at)
+    INSERT INTO currency_conversions (from_amount, to_amount, exchange_rate, direction, notes, converted_at)
     VALUES (
-      ${input.egp_amount.toFixed(2)}::numeric,
-      ${input.usd_amount.toFixed(2)}::numeric,
+      ${input.from_amount.toFixed(2)}::numeric,
+      ${input.to_amount.toFixed(2)}::numeric,
       ${input.exchange_rate.toFixed(4)}::numeric,
       ${input.direction},
       ${input.notes        ?? null},

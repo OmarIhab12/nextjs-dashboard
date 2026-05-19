@@ -69,7 +69,7 @@ export async function addSupplierPaymentAction(
 
     await createOrderPayment({
       order_id:       targetOrder.id,
-      amount_usd:     amount,
+      amount_rmb:     amount,
       payment_method: payment_method as any,
       reference,
       allocations,

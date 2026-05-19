@@ -8,35 +8,20 @@ export type CompanyWallet = {
   id:          string;
   egp_balance: string;
   usd_balance: string;
+  rmb_balance: string;
   updated_at:  string;
 };
 
 export type WalletTransaction = {
   id:           string;
-  currency:     "EGP" | "USD";
+  currency:     "EGP" | "USD" | "RMB";
   amount:       string;
   direction:    "in" | "out";
   reason:       "conversion" | "expense" | "order_payment" | "invoice_payment";
   reference_id: string;
   corrects_id:  string | null;
+  account_id:   string | null;
   created_at:   string;
-};
-
-export type CurrencyConversion = {
-  id:            string;
-  egp_amount:    string;
-  usd_amount:    string;
-  exchange_rate: string;
-  notes:         string | null;
-  converted_at:  string;
-};
-
-export type CreateConversionInput = {
-  egp_amount:    number;
-  usd_amount:    number;
-  exchange_rate: number;
-  notes?:        string;
-  converted_at?: Date;
 };
 
 // ── Wallet Queries ────────────────────────────────────────────────────────────
@@ -52,7 +37,7 @@ export async function getWallet(): Promise<CompanyWallet> {
 // ── Wallet Transaction Queries ────────────────────────────────────────────────
 
 export type GetTransactionsOptions = {
-  currency?:  "EGP" | "USD";
+  currency?:  "EGP" | "USD" | "RMB";
   direction?: "in" | "out";
   reason?:    WalletTransaction["reason"];
   from?:      Date;
@@ -145,8 +130,8 @@ export async function getCorrectionChain(
  * Use to verify company_wallet hasn't drifted.
  * The result should always match getWallet().
  */
-export async function recomputeBalancesFromLedger(): Promise<{ egp: number; usd: number }> {
-  const [row] = await sql<{ egp: string; usd: string }[]>`
+export async function recomputeBalancesFromLedger(): Promise<{ egp: number; usd: number; rmb: number }> {
+  const [row] = await sql<{ egp: string; usd: string; rmb: string }[]>`
     SELECT
       COALESCE(
         SUM(CASE WHEN currency = 'EGP' AND direction = 'in'  THEN amount ELSE 0 END) -
@@ -155,48 +140,14 @@ export async function recomputeBalancesFromLedger(): Promise<{ egp: number; usd:
       COALESCE(
         SUM(CASE WHEN currency = 'USD' AND direction = 'in'  THEN amount ELSE 0 END) -
         SUM(CASE WHEN currency = 'USD' AND direction = 'out' THEN amount ELSE 0 END),
-      0) AS usd
+      0) AS usd,
+      COALESCE(
+        SUM(CASE WHEN currency = 'RMB' AND direction = 'in'  THEN amount ELSE 0 END) -
+        SUM(CASE WHEN currency = 'RMB' AND direction = 'out' THEN amount ELSE 0 END),
+      0) AS rmb
     FROM wallet_transactions
   `;
-  return { egp: Number(row.egp), usd: Number(row.usd) };
-}
-
-// ── Currency Conversions ──────────────────────────────────────────────────────
-
-export async function getAllConversions(): Promise<CurrencyConversion[]> {
-  return sql<CurrencyConversion[]>`
-    SELECT * FROM currency_conversions ORDER BY converted_at DESC
-  `;
-}
-
-export async function getConversionById(id: string): Promise<CurrencyConversion | null> {
-  const [row] = await sql<CurrencyConversion[]>`
-    SELECT * FROM currency_conversions WHERE id = ${id}
-  `;
-  return row ?? null;
-}
-
-/**
- * Records a currency conversion (EGP → USD).
- * DB trigger automatically:
- *  - writes two wallet_transactions (EGP out, USD in)
- *  - updates both balances on company_wallet
- */
-export async function createConversion(
-  input: CreateConversionInput,
-): Promise<CurrencyConversion> {
-  const [row] = await sql<CurrencyConversion[]>`
-    INSERT INTO currency_conversions (egp_amount, usd_amount, exchange_rate, notes, converted_at)
-    VALUES (
-      ${input.egp_amount.toFixed(2)}::numeric,
-      ${input.usd_amount.toFixed(2)}::numeric,
-      ${input.exchange_rate.toFixed(4)}::numeric,
-      ${input.notes        ?? null},
-      ${input.converted_at ?? new Date()}
-    )
-    RETURNING *
-  `;
-  return row;
+  return { egp: Number(row.egp), usd: Number(row.usd), rmb: Number(row.rmb) };
 }
 
 // ── Dashboard Summary ─────────────────────────────────────────────────────────
@@ -204,16 +155,17 @@ export async function createConversion(
 export type WalletSummary = {
   egp_balance:        number;
   usd_balance:        number;
+  rmb_balance:        number;
   egp_in_30d:         number;  // invoice payments received last 30 days
   egp_out_30d:        number;  // expenses paid last 30 days
-  usd_out_30d:        number;  // order payments sent last 30 days
-  pending_orders_usd: number;  // total unpaid USD across all open orders
+  rmb_out_30d:        number;  // order payments sent last 30 days
+  pending_orders_rmb: number;  // total unpaid RMB across all open orders
 };
 
 export async function getWalletSummary(): Promise<WalletSummary> {
   const wallet = await getWallet();
 
-  const [flows] = await sql<{ egp_in: string; egp_out: string; usd_out: string }[]>`
+  const [flows] = await sql<{ egp_in: string; egp_out: string; rmb_out: string }[]>`
     SELECT
       COALESCE(SUM(CASE
         WHEN currency = 'EGP' AND direction = 'in'
@@ -225,24 +177,26 @@ export async function getWalletSummary(): Promise<WalletSummary> {
           AND created_at >= NOW() - INTERVAL '30 days'
         THEN amount ELSE 0 END), 0) AS egp_out,
       COALESCE(SUM(CASE
-        WHEN currency = 'USD' AND direction = 'out'
+        WHEN currency = 'RMB' AND direction = 'out'
           AND created_at >= NOW() - INTERVAL '30 days'
-        THEN amount ELSE 0 END), 0) AS usd_out
+        THEN amount ELSE 0 END), 0) AS rmb_out
     FROM wallet_transactions
     WHERE corrects_id IS NULL   -- exclude reversal/correction rows from summary
   `;
 
-  const [orders] = await sql<{ pending_usd: string }[]>`
-    SELECT COALESCE(SUM(total_usd - paid_usd), 0) AS pending_usd
-    FROM orders WHERE status <> 'paid'
+  const [orders] = await sql<{ pending_rmb: string }[]>`
+    SELECT COALESCE(SUM(amount_remaining), 0) AS pending_rmb
+    FROM order_instalments
+    WHERE status <> 'paid'
   `;
 
   return {
     egp_balance:        Number(wallet.egp_balance),
     usd_balance:        Number(wallet.usd_balance),
+    rmb_balance:        Number(wallet.rmb_balance),
     egp_in_30d:         Number(flows.egp_in),
     egp_out_30d:        Number(flows.egp_out),
-    usd_out_30d:        Number(flows.usd_out),
-    pending_orders_usd: Number(orders.pending_usd),
+    rmb_out_30d:        Number(flows.rmb_out),
+    pending_orders_rmb: Number(orders.pending_rmb),
   };
 }

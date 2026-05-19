@@ -6,7 +6,7 @@ import sql from '@/app/lib/db';
 
 export type WalletAccount = {
   id:         string;
-  currency:   'EGP' | 'USD';
+  currency:   'EGP' | 'USD' | 'RMB';
   method:     string;
   balance:    string;
   updated_at: string;
@@ -14,7 +14,7 @@ export type WalletAccount = {
 
 export type WalletTransfer = {
   id:              string;
-  currency:        'EGP' | 'USD';
+  currency:        'EGP' | 'USD' | 'RMB';
   amount:          string;
   from_account_id: string;
   to_account_id:   string;
@@ -50,7 +50,7 @@ export async function getRecentTransfers(limit = 10): Promise<
 // ── Mutations ─────────────────────────────────────────────────────────────────
 
 export async function createWalletTransfer(input: {
-  currency:        'EGP' | 'USD';
+  currency:        'EGP' | 'USD' | 'RMB';
   amount:          number;
   from_account_id: string;
   to_account_id:   string;

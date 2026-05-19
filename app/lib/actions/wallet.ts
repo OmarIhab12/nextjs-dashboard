@@ -9,26 +9,32 @@ export type ConversionState = {
   error: string | null;
 };
 
+const VALID_DIRECTIONS = [
+  'egp_to_usd', 'usd_to_egp',
+  'egp_to_rmb', 'rmb_to_egp',
+  'usd_to_rmb', 'rmb_to_usd',
+] as const;
+
 export async function createConversionAction(
   formData: FormData,
 ): Promise<ConversionState> {
   try {
-    const egp_amount    = parseFloat(formData.get('egp_amount')    as string);
-    const usd_amount    = parseFloat(formData.get('usd_amount')    as string);
+    const from_amount   = parseFloat(formData.get('from_amount')   as string);
+    const to_amount     = parseFloat(formData.get('to_amount')     as string);
     const exchange_rate = parseFloat(formData.get('exchange_rate') as string);
-    const direction     = (formData.get('direction') as string) || 'egp_to_usd';
+    const direction     = formData.get('direction') as string;
     const notes         = (formData.get('notes') as string)?.trim() || undefined;
 
-    if (!egp_amount    || egp_amount    <= 0) return { error: 'EGP amount must be greater than zero.' };
-    if (!usd_amount    || usd_amount    <= 0) return { error: 'USD amount must be greater than zero.' };
+    if (!from_amount   || from_amount   <= 0) return { error: 'From amount must be greater than zero.' };
+    if (!to_amount     || to_amount     <= 0) return { error: 'To amount must be greater than zero.' };
     if (!exchange_rate || exchange_rate <= 0) return { error: 'Exchange rate must be greater than zero.' };
-    if (!['egp_to_usd', 'usd_to_egp'].includes(direction)) return { error: 'Invalid direction.' };
+    if (!(VALID_DIRECTIONS as readonly string[]).includes(direction)) return { error: 'Invalid direction.' };
 
     await createConversion({
-      egp_amount,
-      usd_amount,
+      from_amount,
+      to_amount,
       exchange_rate,
-      direction: direction as 'egp_to_usd' | 'usd_to_egp',
+      direction: direction as typeof VALID_DIRECTIONS[number],
       notes,
     });
 
@@ -44,7 +50,7 @@ export async function createTransferAction(
   formData: FormData,
 ): Promise<{ error: string | null }> {
   try {
-    const currency        = formData.get('currency')        as 'EGP' | 'USD';
+    const currency        = formData.get('currency')        as 'EGP' | 'USD' | 'RMB';
     const amount          = parseFloat(formData.get('amount') as string);
     const from_account_id = formData.get('from_account_id') as string;
     const to_account_id   = formData.get('to_account_id')   as string;
@@ -54,7 +60,7 @@ export async function createTransferAction(
     if (!from_account_id)                  return { error: 'Select source account.' };
     if (!to_account_id)                    return { error: 'Select destination account.' };
     if (from_account_id === to_account_id) return { error: 'Source and destination must be different.' };
-    if (!['EGP', 'USD'].includes(currency)) return { error: 'Invalid currency.' };
+    if (!['EGP', 'USD', 'RMB'].includes(currency)) return { error: 'Invalid currency.' };
 
     const { createWalletTransfer } = await import('@/app/lib/db/wallet-accounts');
     await createWalletTransfer({ currency, amount, from_account_id, to_account_id, notes });

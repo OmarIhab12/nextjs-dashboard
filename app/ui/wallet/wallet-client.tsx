@@ -8,6 +8,26 @@ import { createConversionAction, createTransferAction } from '@/app/lib/actions/
 import type { WalletAccount } from '@/app/lib/db/wallet-accounts';
 import { BankAccounts } from '../shared/status';
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type ConvCurrency = 'EGP' | 'USD' | 'RMB';
+
+type LiveRates = {
+  egpPerUsd: number;
+  rmbPerUsd: number;
+  updatedAt: string;
+};
+
+function pairRate(from: ConvCurrency, to: ConvCurrency, r: LiveRates): number | null {
+  if (from === 'USD' && to === 'EGP') return r.egpPerUsd;
+  if (from === 'EGP' && to === 'USD') return 1 / r.egpPerUsd;
+  if (from === 'USD' && to === 'RMB') return r.rmbPerUsd;
+  if (from === 'RMB' && to === 'USD') return 1 / r.rmbPerUsd;
+  if (from === 'EGP' && to === 'RMB') return r.rmbPerUsd / r.egpPerUsd;
+  if (from === 'RMB' && to === 'EGP') return r.egpPerUsd / r.rmbPerUsd;
+  return null;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmt(n: number, decimals = 2) {
@@ -46,7 +66,7 @@ function TotalCard({
         Total {currency}
       </p>
       <p className={`mt-1 text-3xl font-bold tabular-nums ${accent ? 'text-blue-700' : 'text-gray-800'}`}>
-        {currency === 'EGP' ? 'E£' : '$'} {fmt(amount)}
+        {currency === 'EGP' ? 'E£' : currency === 'USD' ? '$' : '¥'} {fmt(amount)}
       </p>
     </div>
   );
@@ -57,7 +77,7 @@ function TotalCard({
 function AccountBreakdown({
   currency, accounts,
 }: {
-  currency: 'EGP' | 'USD'; accounts: WalletAccount[];
+  currency: 'EGP' | 'USD' | 'RMB'; accounts: WalletAccount[];
 }) {
   const filtered = accounts.filter((a) => a.currency === currency);
   const total    = filtered.reduce((s, a) => s + (Number(a.balance) > 0 ? Number(a.balance) : 0), 0);
@@ -93,7 +113,7 @@ function AccountBreakdown({
                 </div>
               </div>
               <span className="w-32 text-right text-sm font-semibold tabular-nums text-gray-700">
-                {currency === 'EGP' ? 'E£' : '$'} {fmt(Number(acc.balance))}
+                {currency === 'EGP' ? 'E£' : currency === 'USD' ? '$' : '¥'} {fmt(Number(acc.balance))}
               </span>
             </div>
           );
@@ -106,7 +126,7 @@ function AccountBreakdown({
 // ── Transfer Form ─────────────────────────────────────────────────────────────
 
 function TransferForm({ accounts }: { accounts: WalletAccount[] }) {
-  const [currency,  setCurrency]  = useState<'EGP' | 'USD'>('EGP');
+  const [currency,  setCurrency]  = useState<'EGP' | 'USD' | 'RMB'>('EGP');
   const [fromId,    setFromId]    = useState('');
   const [toId,      setToId]      = useState('');
   const [amount,    setAmount]    = useState('');
@@ -122,7 +142,7 @@ function TransferForm({ accounts }: { accounts: WalletAccount[] }) {
   const handleSubmit = () => {
     const amt = parseFloat(amount);
     if (!amt || amt <= 0)     { setError('Enter a valid amount.'); return; }
-    if (amt > available)      { setError(`Insufficient balance (${currency === 'EGP' ? 'EGP' : '$'} ${fmt(available)} available).`); return; }
+    if (amt > available)      { setError(`Insufficient balance (${currency === 'EGP' ? 'EGP' : currency === 'USD' ? '$' : '¥'} ${fmt(available)} available).`); return; }
     if (!fromId || !toId)     { setError('Select both accounts.'); return; }
     if (fromId === toId)      { setError('Source and destination must be different.'); return; }
 
@@ -147,7 +167,7 @@ function TransferForm({ accounts }: { accounts: WalletAccount[] }) {
 
         {/* Currency toggle */}
         <div className="flex gap-1 rounded-lg bg-gray-100 p-1 w-fit">
-          {(['EGP', 'USD'] as const).map((c) => (
+          {(['EGP', 'USD', 'RMB'] as const).map((c) => (
             <button key={c} onClick={() => { setCurrency(c); setFromId(''); setToId(''); }}
               className={`rounded-md px-4 py-1 text-sm font-medium transition-colors ${
                 currency === c ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
@@ -166,7 +186,7 @@ function TransferForm({ accounts }: { accounts: WalletAccount[] }) {
               <option value="">Select account</option>
               {filtered.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {METHOD_LABELS[a.method] ?? a.method} — {currency === 'EGP' ? 'EGP' : '$'} {fmt(Number(a.balance))}
+                  {METHOD_LABELS[a.method] ?? a.method} — {currency === 'EGP' ? 'EGP' : currency === 'USD' ? '$' : '¥'} {fmt(Number(a.balance))}
                 </option>
               ))}
             </select>
@@ -193,14 +213,14 @@ function TransferForm({ accounts }: { accounts: WalletAccount[] }) {
           <label className="mb-1 block text-xs text-gray-400">Amount</label>
           <div className="relative">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-              {currency === 'EGP' ? 'EGP' : '$'}
+              {currency === 'EGP' ? 'EGP' : currency === 'USD' ? '$' : '¥'}
             </span>
             <input type="number" min={0} step="0.01" value={amount}
               onChange={(e) => { setAmount(e.target.value); setError(null); setSuccess(false); }}
               placeholder="0.00" className={`${inputClass} pl-12 pr-3`} />
           </div>
           {fromId && <p className={`mt-1 text-xs ${available > 0 ? 'text-green-500' : 'text-red-500'}`}>
-            Available: {currency === 'EGP' ? 'EGP' : '$'} {fmt(available)}
+            Available: {currency === 'EGP' ? 'EGP' : currency === 'USD' ? '$' : '¥'} {fmt(available)}
           </p>}
         </div>
 
@@ -227,36 +247,41 @@ function TransferForm({ accounts }: { accounts: WalletAccount[] }) {
 
 // ── Conversion Form ───────────────────────────────────────────────────────────
 
-function ConversionForm({
-  liveRate, accounts,
-}: {
-  liveRate: number | null; accounts: WalletAccount[];
-}) {
-  const [direction,    setDirection]    = useState<'egp_to_usd' | 'usd_to_egp'>('egp_to_usd');
-  const [fromAmount,   setFromAmount]   = useState('');
-  const [toAmount,     setToAmount]     = useState('');
-  const [exchangeRate, setExchangeRate] = useState(liveRate ? String(liveRate.toFixed(4)) : '');
-  const [notes,        setNotes]        = useState('');
-  const [error,        setError]        = useState<string | null>(null);
-  const [success,      setSuccess]      = useState(false);
-  const [isPending,    startTransition] = useTransition();
+const CURRENCY_SYMBOL: Record<ConvCurrency, string> = {
+  EGP: 'E£',
+  USD: '$',
+  RMB: '¥',
+};
 
-  const isEgpToUsd    = direction === 'egp_to_usd';
-  const fromCurrency  = isEgpToUsd ? 'EGP' : 'USD';
-  const toCurrency    = isEgpToUsd ? 'USD' : 'EGP';
-  const fromPrefix    = isEgpToUsd ? 'EGP' : '$';
-  const toPrefix      = isEgpToUsd ? '$' : 'EGP';
-  const fromAccounts  = accounts.filter((a) => a.currency === fromCurrency);
-  const fromTotal     = fromAccounts.reduce((s, a) => s + Number(a.balance), 0);
+function ConversionForm({
+  liveRates, accounts,
+}: {
+  liveRates: LiveRates | null; accounts: WalletAccount[];
+}) {
+  const [fromCurrency,  setFromCurrency]  = useState<ConvCurrency>('EGP');
+  const [toCurrency,    setToCurrency]    = useState<ConvCurrency>('USD');
+  const [fromAmount,    setFromAmount]    = useState('');
+  const [toAmount,      setToAmount]      = useState('');
+  const [exchangeRate,  setExchangeRate]  = useState('');
+  const [notes,         setNotes]         = useState('');
+  const [error,         setError]         = useState<string | null>(null);
+  const [success,       setSuccess]       = useState(false);
+  const [isPending,     startTransition]  = useTransition();
+
+  const direction = `${fromCurrency.toLowerCase()}_to_${toCurrency.toLowerCase()}` as const;
+  const fromSymbol   = CURRENCY_SYMBOL[fromCurrency];
+  const toSymbol     = CURRENCY_SYMBOL[toCurrency];
+  const fromAccounts = accounts.filter((a) => a.currency === fromCurrency);
+  const fromTotal    = fromAccounts.reduce((s, a) => s + Number(a.balance), 0);
 
   const computeTo   = (from: string, rate: string) => {
     const f = parseFloat(from); const r = parseFloat(rate);
-    if (f > 0 && r > 0) return isEgpToUsd ? (f / r).toFixed(2) : (f * r).toFixed(2);
+    if (f > 0 && r > 0) return (f * r).toFixed(2);
     return '';
   };
   const computeFrom = (to: string, rate: string) => {
     const t = parseFloat(to); const r = parseFloat(rate);
-    if (t > 0 && r > 0) return isEgpToUsd ? (t * r).toFixed(2) : (t / r).toFixed(2);
+    if (t > 0 && r > 0) return (t / r).toFixed(2);
     return '';
   };
 
@@ -264,10 +289,15 @@ function ConversionForm({
   const handleToChange   = (v: string) => { setToAmount(v); setFromAmount(computeFrom(v, exchangeRate)); setError(null); setSuccess(false); };
   const handleRateChange = (v: string) => { setExchangeRate(v); setToAmount(computeTo(fromAmount, v)); setError(null); setSuccess(false); };
 
-  const flipDirection = () => {
-    setDirection((d) => d === 'egp_to_usd' ? 'usd_to_egp' : 'egp_to_usd');
-    setFromAmount(toAmount); setToAmount(fromAmount);
-    setError(null); setSuccess(false);
+  const handleFromCurrencyChange = (c: ConvCurrency) => {
+    setFromCurrency(c);
+    if (c === toCurrency) setToCurrency(c === 'EGP' ? 'USD' : c === 'USD' ? 'EGP' : 'USD');
+    setFromAmount(''); setToAmount(''); setExchangeRate(''); setError(null); setSuccess(false);
+  };
+  const handleToCurrencyChange = (c: ConvCurrency) => {
+    setToCurrency(c);
+    if (c === fromCurrency) setFromCurrency(c === 'EGP' ? 'USD' : c === 'USD' ? 'EGP' : 'USD');
+    setFromAmount(''); setToAmount(''); setExchangeRate(''); setError(null); setSuccess(false);
   };
 
   const handleSubmit = () => {
@@ -277,15 +307,12 @@ function ConversionForm({
     if (!from || from <= 0) { setError(`Enter a valid ${fromCurrency} amount.`); return; }
     if (!to   || to   <= 0) { setError(`Enter a valid ${toCurrency} amount.`); return; }
     if (!rate || rate <= 0) { setError('Enter a valid exchange rate.'); return; }
-    if (from > fromTotal)   { setError(`Insufficient ${fromCurrency} balance (${fromPrefix} ${fmt(fromTotal)} available).`); return; }
-
-    const egp_amount = isEgpToUsd ? from : to;
-    const usd_amount = isEgpToUsd ? to   : from;
+    if (from > fromTotal)   { setError(`Insufficient ${fromCurrency} balance (${fromSymbol} ${fmt(fromTotal)} available).`); return; }
 
     startTransition(async () => {
       const fd = new FormData();
-      fd.set('egp_amount',    String(egp_amount));
-      fd.set('usd_amount',    String(usd_amount));
+      fd.set('from_amount',   String(from));
+      fd.set('to_amount',     String(to));
       fd.set('exchange_rate', String(rate));
       fd.set('direction',     direction);
       fd.set('notes',         notes);
@@ -296,56 +323,78 @@ function ConversionForm({
     });
   };
 
+  const currencies: ConvCurrency[] = ['EGP', 'USD', 'RMB'];
+
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5">
       <h2 className="mb-4 text-sm font-semibold text-gray-800">Currency Conversion</h2>
       <div className="space-y-3">
 
-        {/* Rate */}
-        <div>
-          <label className="mb-1 block text-xs text-gray-400">Exchange Rate (EGP per 1 USD)</label>
-          <div className="relative">
-            <input type="number" min={0} step="0.0001" value={exchangeRate}
-              onChange={(e) => handleRateChange(e.target.value)}
-              placeholder={liveRate ? liveRate.toFixed(4) : '50.0000'}
-              className={`${inputClass} px-3`} />
-            {liveRate && (
-              <button type="button" onClick={() => handleRateChange(liveRate.toFixed(4))}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-0.5 text-xs text-blue-500 hover:bg-blue-50 transition-colors">
-                Use live rate
-              </button>
-            )}
+        {/* Currency pair selectors */}
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <label className="mb-1 block text-xs text-gray-400">From</label>
+            <select value={fromCurrency} onChange={(e) => handleFromCurrencyChange(e.target.value as ConvCurrency)}
+              className={`${inputClass} px-2`}>
+              {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="pb-2 flex-shrink-0 text-gray-300">
+            <ArrowsRightLeftIcon className="h-4 w-4" />
+          </div>
+          <div className="flex-1">
+            <label className="mb-1 block text-xs text-gray-400">To</label>
+            <select value={toCurrency} onChange={(e) => handleToCurrencyChange(e.target.value as ConvCurrency)}
+              className={`${inputClass} px-2`}>
+              {currencies.filter((c) => c !== fromCurrency).map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
         </div>
 
-        {/* From / Flip / To */}
-        <div className="flex items-center gap-2">
+        {/* Exchange rate */}
+        <div>
+          <label className="mb-1 block text-xs text-gray-400">
+            Exchange rate (1 {fromCurrency} = ? {toCurrency})
+          </label>
+          <div className="relative">
+            <input type="number" min={0} step="0.0001" value={exchangeRate}
+              onChange={(e) => handleRateChange(e.target.value)}
+              placeholder="0.0000"
+              className={`${inputClass} px-3`} />
+            {(() => {
+              const live = liveRates ? pairRate(fromCurrency, toCurrency, liveRates) : null;
+              return live ? (
+                <button type="button" onClick={() => handleRateChange(live.toFixed(4))}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-0.5 text-xs text-blue-500 hover:bg-blue-50 transition-colors">
+                  Use live rate
+                </button>
+              ) : null;
+            })()}
+          </div>
+        </div>
+
+        {/* From / To amounts */}
+        <div className="flex items-start gap-2">
           <div className="flex-1">
             <div className="mb-1 flex items-center justify-between">
-              <label className="text-xs text-gray-400">{fromCurrency}</label>
+              <label className="text-xs text-gray-400">{fromCurrency} amount</label>
               <span className={`text-xs ${fromTotal > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                Available: {fromPrefix} {fmt(fromTotal)}
+                Available: {fromSymbol} {fmt(fromTotal)}
               </span>
             </div>
             <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{fromPrefix}</span>
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{fromSymbol}</span>
               <input type="number" min={0} step="0.01" value={fromAmount}
                 onChange={(e) => handleFromChange(e.target.value)}
                 placeholder="0.00" className={`${inputClass} pl-12 pr-3`} />
             </div>
           </div>
-          <div className="mt-5 flex-shrink-0">
-            <button type="button" onClick={flipDirection} title="Flip direction"
-              className="rounded-full border border-gray-200 p-2 text-gray-400 hover:bg-gray-50 hover:text-blue-500 transition-colors">
-              <ArrowsRightLeftIcon className="h-4 w-4" />
-            </button>
-          </div>
           <div className="flex-1">
             <div className="mb-1">
-              <label className="text-xs text-gray-400">{toCurrency}</label>
+              <label className="text-xs text-gray-400">{toCurrency} amount</label>
             </div>
             <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{toPrefix}</span>
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{toSymbol}</span>
               <input type="number" min={0} step="0.01" value={toAmount}
                 onChange={(e) => handleToChange(e.target.value)}
                 placeholder="0.00" className={`${inputClass} pl-12 pr-3`} />
@@ -376,29 +425,39 @@ function ConversionForm({
 
 // ── Rate Badge ────────────────────────────────────────────────────────────────
 
-function RateBadge({ rate, updatedAt }: { rate: number | null; updatedAt: string | null }) {
-  if (!rate) return (
+function RateBadge({ liveRates }: { liveRates: LiveRates | null }) {
+  if (!liveRates) return (
     <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
       Live rate unavailable — add <code className="font-mono text-xs">EXCHANGE_RATE_API_KEY</code> to your .env
     </div>
   );
-  const updated = updatedAt
-    ? new Date(updatedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    : null;
+  const { egpPerUsd, rmbPerUsd, updatedAt } = liveRates;
+  const egpPerRmb = egpPerUsd / rmbPerUsd;
+  const updated = new Date(updatedAt).toLocaleDateString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
   return (
-    <div className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-4 py-3">
-      <div className="flex items-center gap-3">
-        <div className="rounded-full bg-green-50 p-1.5">
-          <ArrowsRightLeftIcon className="h-4 w-4 text-green-600" />
+    <div className="rounded-lg border border-gray-100 bg-white px-4 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <div className="rounded-full bg-green-50 p-1.5">
+            <ArrowsRightLeftIcon className="h-4 w-4 text-green-600" />
+          </div>
+          <p className="text-xs text-gray-400">Live exchange rates</p>
         </div>
-        <div>
-          <p className="text-xs text-gray-400">Live exchange rate</p>
-          <p className="text-sm font-semibold text-gray-800">
-            1 USD = <span className="text-blue-600">{fmt(rate, 4)} EGP</span>
-          </p>
-        </div>
+        <p className="text-xs text-gray-300">Updated {updated}</p>
       </div>
-      {updated && <p className="text-xs text-gray-300">Updated {updated}</p>}
+      <div className="flex flex-wrap gap-x-6 gap-y-1">
+        <p className="text-sm font-semibold text-gray-800">
+          1 USD = <span className="text-blue-600">{fmt(egpPerUsd, 4)} EGP</span>
+        </p>
+        <p className="text-sm font-semibold text-gray-800">
+          1 USD = <span className="text-red-600">{fmt(rmbPerUsd, 4)} RMB</span>
+        </p>
+        <p className="text-sm font-semibold text-gray-800">
+          1 RMB = <span className="text-amber-600">{fmt(egpPerRmb, 4)} EGP</span>
+        </p>
+      </div>
     </div>
   );
 }
@@ -408,14 +467,14 @@ function RateBadge({ rate, updatedAt }: { rate: number | null; updatedAt: string
 type Tab = 'transfer' | 'convert';
 
 export default function WalletClient({
-  egpBalance, usdBalance, accounts, recentTransfers, liveRate, rateUpdatedAt,
+  egpBalance, usdBalance, rmbBalance, accounts, recentTransfers: _recentTransfers, liveRates,
 }: {
   egpBalance:      number;
   usdBalance:      number;
+  rmbBalance:      number;
   accounts:        WalletAccount[];
   recentTransfers: any[];
-  liveRate:        number | null;
-  rateUpdatedAt:   string | null;
+  liveRates:       LiveRates | null;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('transfer');
 
@@ -423,29 +482,31 @@ export default function WalletClient({
     <div className="space-y-6">
 
       {/* ── Total balance cards ── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <TotalCard currency="EGP" amount={egpBalance} />
         <TotalCard currency="USD" amount={usdBalance} accent />
+        <TotalCard currency="RMB" amount={rmbBalance} />
       </div>
 
       {/* ── Combined value ── */}
-      {liveRate && (
+      {liveRates && (
         <div className="rounded-xl border border-gray-100 bg-white px-5 py-3">
-          <p className="text-xs text-gray-400">Total value in EGP (at live rate)</p>
+          <p className="text-xs text-gray-400">Total value in EGP (at live rates)</p>
           <p className="mt-0.5 text-xl font-bold tabular-nums text-gray-800">
-            E£ {fmt(egpBalance + usdBalance * liveRate)}
+            E£ {fmt(egpBalance + usdBalance * liveRates.egpPerUsd + rmbBalance * (liveRates.egpPerUsd / liveRates.rmbPerUsd))}
           </p>
         </div>
       )}
 
       {/* ── Account breakdowns ── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <AccountBreakdown currency="EGP" accounts={accounts} />
         <AccountBreakdown currency="USD" accounts={accounts} />
+        <AccountBreakdown currency="RMB" accounts={accounts} />
       </div>
 
       {/* ── Live rate ── */}
-      <RateBadge rate={liveRate} updatedAt={rateUpdatedAt} />
+      <RateBadge liveRates={liveRates} />
 
       {/* ── Action tabs ── */}
       <div className="flex gap-1 rounded-lg bg-gray-100 p-1 w-fit">
@@ -462,7 +523,7 @@ export default function WalletClient({
       {/* ── Active form ── */}
       {activeTab === 'transfer'
         ? <TransferForm accounts={accounts} />
-        : <ConversionForm liveRate={liveRate} accounts={accounts} />
+        : <ConversionForm liveRates={liveRates} accounts={accounts} />
       }
 
     </div>

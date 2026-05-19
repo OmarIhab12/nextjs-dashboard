@@ -3,20 +3,35 @@ import sql from "../db";
 async function drop() {
   console.log("⚠️  Dropping all database objects...");
 
-  // ── Triggers ────────────────────────────────────────────────
+  // ── Triggers ─────────────────────────────────────────────────────────────
+
+  // Wallet transfers (from migrate-wallet-accounts)
+  await sql`DROP TRIGGER IF EXISTS trg_wallet_transfer_sync         ON wallet_transfers`;
 
   // Financial
-  await sql`DROP TRIGGER IF EXISTS trg_order_payment_sync_wallet   ON order_payments`;
-  await sql`DROP TRIGGER IF EXISTS trg_expense_sync_wallet         ON expenses`;
-  await sql`DROP TRIGGER IF EXISTS trg_conversion_sync_wallet      ON currency_conversions`;
-  await sql`DROP TRIGGER IF EXISTS trg_payment_sync_wallet         ON payments`;
-  await sql`DROP TRIGGER IF EXISTS trg_stock_on_order_item_insert    ON order_items`;
-  await sql`DROP TRIGGER IF EXISTS trg_stock_on_order_item_update    ON order_items`;
-  await sql`DROP TRIGGER IF EXISTS trg_stock_on_order_item_delete    ON order_items`;
-  await sql`DROP TRIGGER IF EXISTS trg_stock_on_order_status         ON orders`;
-  await sql`DROP TRIGGER IF EXISTS trg_order_default_instalment    ON orders`;
+  await sql`DROP TRIGGER IF EXISTS trg_order_payment_sync_wallet    ON order_payments`;
+  await sql`DROP TRIGGER IF EXISTS trg_expense_sync_wallet          ON expenses`;
+  await sql`DROP TRIGGER IF EXISTS trg_conversion_sync_wallet       ON currency_conversions`;
+  await sql`DROP TRIGGER IF EXISTS trg_payment_sync_wallet          ON payments`;
 
-  // Core
+  // Stock
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_order_item_insert   ON order_items`;
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_order_item_update   ON order_items`;
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_order_item_delete   ON order_items`;
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_order_status        ON orders`;
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_insert         ON invoice_items`;
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_update         ON invoice_items`;
+  await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_delete         ON invoice_items`;
+
+  // Default instalments
+  await sql`DROP TRIGGER IF EXISTS trg_order_default_instalment     ON orders`;
+  await sql`DROP TRIGGER IF EXISTS trg_invoice_default_installment  ON invoices`;
+
+  // Instalment status sync
+  await sql`DROP TRIGGER IF EXISTS trg_installment_sync_status      ON installments`;
+  await sql`DROP TRIGGER IF EXISTS trg_order_instalment_sync_status ON order_instalments`;
+
+  // updated_at
   await sql`DROP TRIGGER IF EXISTS trg_order_instalments_updated_at ON order_instalments`;
   await sql`DROP TRIGGER IF EXISTS trg_orders_updated_at            ON orders`;
   await sql`DROP TRIGGER IF EXISTS trg_suppliers_updated_at         ON suppliers`;
@@ -25,14 +40,10 @@ async function drop() {
   await sql`DROP TRIGGER IF EXISTS trg_products_updated_at          ON products`;
   await sql`DROP TRIGGER IF EXISTS trg_customers_updated_at         ON customers`;
   await sql`DROP TRIGGER IF EXISTS trg_users_updated_at             ON users`;
-  await sql`DROP TRIGGER IF EXISTS trg_invoice_default_installment  ON invoices`;
-  await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_insert         ON invoice_items`;
-  await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_update         ON invoice_items`;
-  await sql`DROP TRIGGER IF EXISTS trg_stock_on_item_delete         ON invoice_items`;
-  await sql`DROP TRIGGER IF EXISTS trg_installment_sync_status      ON installments`;
-  await sql`DROP TRIGGER IF EXISTS trg_order_instalment_sync_status ON order_instalments`;
 
-  // ── Functions ────────────────────────────────────────────────
+  // ── Functions ─────────────────────────────────────────────────────────────
+
+  await sql`DROP FUNCTION IF EXISTS fn_wallet_transfer_sync()`;
   await sql`DROP FUNCTION IF EXISTS fn_order_payment_sync_wallet()`;
   await sql`DROP FUNCTION IF EXISTS fn_expense_sync_wallet()`;
   await sql`DROP FUNCTION IF EXISTS fn_conversion_sync_wallet()`;
@@ -49,7 +60,11 @@ async function drop() {
   await sql`DROP FUNCTION IF EXISTS sync_order_instalment_status()`;
   await sql`DROP FUNCTION IF EXISTS set_updated_at()`;
 
-  // ── Tables — dependants before parents ───────────────────────
+  // ── Tables — dependants before parents ───────────────────────────────────
+
+  // Wallet (from migrate-wallet-accounts)
+  await sql`DROP TABLE IF EXISTS wallet_transfers`;
+  await sql`DROP TABLE IF EXISTS wallet_accounts`;
 
   // Financial
   await sql`DROP TABLE IF EXISTS order_payment_instalments`;
@@ -73,9 +88,8 @@ async function drop() {
   await sql`DROP TABLE IF EXISTS customers`;
   await sql`DROP TABLE IF EXISTS users`;
 
-  // ── Enums ────────────────────────────────────────────────────
+  // ── Enums ─────────────────────────────────────────────────────────────────
 
-  // Financial
   await sql`DROP TYPE IF EXISTS order_instalment_status`;
   await sql`DROP TYPE IF EXISTS order_status`;
   await sql`DROP TYPE IF EXISTS expense_recurrence`;
@@ -83,15 +97,16 @@ async function drop() {
   await sql`DROP TYPE IF EXISTS wallet_reason`;
   await sql`DROP TYPE IF EXISTS wallet_direction`;
   await sql`DROP TYPE IF EXISTS wallet_currency`;
-
-  // Core
   await sql`DROP TYPE IF EXISTS payment_method`;
   await sql`DROP TYPE IF EXISTS payment_status`;
   await sql`DROP TYPE IF EXISTS discount_type`;
   await sql`DROP TYPE IF EXISTS invoice_status`;
   await sql`DROP TYPE IF EXISTS user_role`;
 
-  // ── Extensions ───────────────────────────────────────────────
+  // ── Constraints (direction was converted to TEXT in migrate-rmb) ──────────
+  // No enum to drop for currency_conversions.direction — it's now TEXT
+
+  // ── Extensions ────────────────────────────────────────────────────────────
   await sql`DROP EXTENSION IF EXISTS "uuid-ossp"`;
 
   console.log("✅  All database objects dropped.");

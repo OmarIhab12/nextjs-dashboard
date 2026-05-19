@@ -12,12 +12,14 @@ function fmt(n: number) {
 export default function DashboardWallet({
   egpBalance,
   usdBalance,
+  rmbBalance,
 }: {
   egpBalance: number;
   usdBalance: number;
+  rmbBalance: number;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       {/* EGP */}
       <Link href="/dashboard/wallet"
         className="flex items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 p-5 hover:bg-gray-100 transition-colors">
@@ -42,6 +44,20 @@ export default function DashboardWallet({
           <p className="text-xs font-medium uppercase tracking-wide text-blue-400">USD Balance</p>
           <p className="text-2xl font-bold tabular-nums text-blue-700">
             ${fmt(usdBalance)}
+          </p>
+        </div>
+      </Link>
+
+      {/* RMB */}
+      <Link href="/dashboard/wallet"
+        className="flex items-center gap-4 rounded-xl border border-red-100 bg-red-50 p-5 hover:bg-red-100 transition-colors">
+        <div className="rounded-full bg-white p-3 shadow-sm">
+          <WalletIcon className="h-5 w-5 text-red-500" />
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-red-400">RMB Balance</p>
+          <p className="text-2xl font-bold tabular-nums text-red-700">
+            ¥{fmt(rmbBalance)}
           </p>
         </div>
       </Link>

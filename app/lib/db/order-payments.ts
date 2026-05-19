@@ -10,7 +10,7 @@ import { PaymentMethod } from "./payments";
 export type OrderPayment = {
   id:             string;
   order_id:       string;
-  amount_usd:     string;
+  amount_rmb:     string;
   payment_method: PaymentMethod;
   reference:      string | null;
   notes:          string | null;
@@ -25,7 +25,7 @@ export type OrderPaymentAllocation = {
 
 export type CreateOrderPaymentInput = {
   order_id:       string;
-  amount_usd:     number;
+  amount_rmb:     number;
   payment_method: PaymentMethod;
   reference?:     string;
   notes?:         string;
@@ -34,9 +34,9 @@ export type CreateOrderPaymentInput = {
 };
 
 export type UpdateOrderPaymentInput = {
-  amount_usd?:     number;
+  amount_rmb?:     number;
   payment_method?: PaymentMethod;
-  allocations?:    OrderPaymentAllocation[]; // required if amount_usd changes
+  allocations?:    OrderPaymentAllocation[]; // required if amount_rmb changes
   reference?:      string;
   notes?:          string;
   paid_at?:        Date;
@@ -86,19 +86,19 @@ export async function createOrderPayment(
   const allocationTotal = input.allocations.reduce(
     (sum, a) => sum + a.amount_allocated, 0
   );
-  if (Math.abs(allocationTotal - input.amount_usd) > 0.001) {
+  if (Math.abs(allocationTotal - input.amount_rmb) > 0.001) {
     throw new Error(
-      `Allocation total (${allocationTotal}) must equal payment amount (${input.amount_usd})`
+      `Allocation total (${allocationTotal}) must equal payment amount (${input.amount_rmb})`
     );
   }
 
   return await sql.begin(async (tx) => {
     // 1. Insert payment — DB trigger handles wallet & order.paid_usd
     const [payment] = await tx<OrderPayment[]>`
-      INSERT INTO order_payments (order_id, amount_usd, payment_method, reference, notes, paid_at)
+      INSERT INTO order_payments (order_id, amount_rmb, payment_method, reference, notes, paid_at)
       VALUES (
         ${input.order_id},
-        ${input.amount_usd.toFixed(2)}::numeric,
+        ${input.amount_rmb.toFixed(2)}::numeric,
         ${input.payment_method}::payment_method,
         ${input.reference ?? null},
         ${input.notes     ?? null},
@@ -161,7 +161,7 @@ export async function createOrderPayment(
  *   4. Applies new allocations
  *   5. Links corrects_id chain on wallet_transactions
  *
- * Requires allocations when amount_usd changes.
+ * Requires allocations when amount_rmb changes.
  */
 export async function updateOrderPayment(
   id:    string,
@@ -171,8 +171,8 @@ export async function updateOrderPayment(
   if (!existing) throw new Error(`Order payment ${id} not found`);
 
   const amountChanged =
-    input.amount_usd !== undefined &&
-    Math.abs(input.amount_usd - Number(existing.amount_usd)) > 0.001;
+    input.amount_rmb !== undefined &&
+    Math.abs(input.amount_rmb - Number(existing.amount_rmb)) > 0.001;
 
   // ── Case 1: non-financial update only ────────────────────────
   if (!amountChanged) {
@@ -193,7 +193,7 @@ export async function updateOrderPayment(
     throw new Error("allocations are required when updating payment amount");
   }
 
-  const newAmount = input.amount_usd!;
+  const newAmount = input.amount_rmb!;
   const allocationTotal = input.allocations.reduce(
     (sum, a) => sum + a.amount_allocated, 0
   );
@@ -244,7 +244,7 @@ export async function updateOrderPayment(
 
     // Step 4 — insert corrected payment (trigger: wallet USD out + order.paid_usd updated)
     const [newPayment] = await tx<OrderPayment[]>`
-      INSERT INTO order_payments (order_id, amount_usd, payment_method, reference, notes, paid_at)
+      INSERT INTO order_payments (order_id, amount_rmb, payment_method, reference, notes, paid_at)
       VALUES (
         ${existing.order_id},
         ${newAmount.toFixed(2)}::numeric,

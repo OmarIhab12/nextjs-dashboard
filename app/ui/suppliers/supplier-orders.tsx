@@ -20,14 +20,14 @@ export default function SupplierOrders({
       title="Orders"
       count={orders.length}
       statCards={[
-        { label: 'Total ordered', value: `$${fmt(totalOrdered)}` },
-        { label: 'Total paid',    value: `$${fmt(totalPaid)}`,    accent: true },
+        { label: 'Total ordered', value: `¥${fmt(totalOrdered)}` },
+        { label: 'Total paid',    value: `¥${fmt(totalPaid)}`,    accent: true },
       ]}
       cols={COLS}
       headers={[
         { label: 'Date' },
-        { label: 'Total (USD)', align: 'center' },
-        { label: 'Paid (USD)',  align: 'center' },
+        { label: 'Total (RMB)', align: 'center' },
+        { label: 'Paid (RMB)',  align: 'center' },
         { label: 'Status',     align: 'center' },
       ]}
       items={orders}
@@ -36,10 +36,10 @@ export default function SupplierOrders({
         <>
           <span className="text-sm text-gray-500">{fmtDate(o.order_date)}</span>
           <span className="text-center text-sm font-medium tabular-nums text-gray-800">
-            ${fmt(Number(o.total_usd))}
+            ¥{fmt(Number(o.total_rmb))}
           </span>
           <span className="text-center text-sm tabular-nums text-gray-500">
-            ${fmt(Number(o.paid_usd))}
+            ¥{fmt(Number(o.paid_rmb))}
           </span>
           <div className="flex justify-center">
             <PaymentStatus status={o.payment_status} />

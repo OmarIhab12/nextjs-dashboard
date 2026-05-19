@@ -20,7 +20,7 @@ export type OrderPaymentStatus = "pending" | "partial" | "paid" | "overdue";
 export type Order = {
   id:           string;
   supplier_id:  string | null;
-  total_usd:    string;
+  total_rmb:    string;
   status:       OrderStatus;
   notes:        string | null;
   order_date:   string;
@@ -28,13 +28,13 @@ export type Order = {
   supplier_name?: string;
 };
 
-// Enriched with computed payment_status and paid_usd from instalments
+// Enriched with computed payment_status and paid_rmb from instalments
 export type OrderWithItems = OrderWithPaymentStatus & {
   items: OrderItemRow[];
 };
 
 export type OrderWithPaymentStatus = Order & {
-  paid_usd:       number;
+  paid_rmb:       number;
   payment_status: OrderPaymentStatus;
 };
 
@@ -49,7 +49,7 @@ export type OrderItemRow = {
 
 export type CreateOrderInput = {
   supplier_id?: string;
-  total_usd:    number;
+  total_rmb:    number;
   notes?:       string;
   order_date?:  Date;
 };
@@ -70,55 +70,55 @@ function derivePaymentStatus(
 // ── Order Queries ─────────────────────────────────────────────────────────────
 
 /**
- * Returns all orders enriched with paid_usd and payment_status
+ * Returns all orders enriched with paid_rmb and payment_status
  * computed from order_instalments in a single query.
  */
 export async function getAllOrders(): Promise<OrderWithPaymentStatus[]> {
-  const rows = await sql<(Order & { paid_usd: string; has_overdue: boolean })[]>`
+  const rows = await sql<(Order & { paid_rmb: string; has_overdue: boolean })[]>`
     SELECT
-      o.id, o.supplier_id, o.total_usd, o.status, o.notes, o.order_date, o.updated_at,
+      o.id, o.supplier_id, o.total_rmb, o.status, o.notes, o.order_date, o.updated_at,
       s.name                                          AS supplier_name,
-      COALESCE(SUM(oi.amount_paid), 0)                AS paid_usd,
+      COALESCE(SUM(oi.amount_paid), 0)                AS paid_rmb,
       BOOL_OR(oi.status = 'overdue')                  AS has_overdue
     FROM orders o
     LEFT JOIN suppliers s          ON s.id       = o.supplier_id
     LEFT JOIN order_instalments oi ON oi.order_id = o.id
-    GROUP BY o.id, o.supplier_id, o.total_usd, o.status, o.notes, o.order_date, o.updated_at, s.name
+    GROUP BY o.id, o.supplier_id, o.total_rmb, o.status, o.notes, o.order_date, o.updated_at, s.name
     ORDER BY o.order_date DESC
   `;
 
   return rows.map((r) => ({
     ...r,
-    paid_usd:       Number(r.paid_usd),
+    paid_rmb:       Number(r.paid_rmb),
     payment_status: derivePaymentStatus(
-      Number(r.total_usd),
-      Number(r.paid_usd),
+      Number(r.total_rmb),
+      Number(r.paid_rmb),
       r.has_overdue,
     ),
   }));
 }
 
 export async function getOrderById(id: string): Promise<OrderWithPaymentStatus | null> {
-  const [row] = await sql<(Order & { paid_usd: string; has_overdue: boolean })[]>`
+  const [row] = await sql<(Order & { paid_rmb: string; has_overdue: boolean })[]>`
     SELECT
-      o.id, o.supplier_id, o.total_usd, o.status, o.notes, o.order_date, o.updated_at,
+      o.id, o.supplier_id, o.total_rmb, o.status, o.notes, o.order_date, o.updated_at,
       s.name                                          AS supplier_name,
-      COALESCE(SUM(oi.amount_paid), 0)                AS paid_usd,
+      COALESCE(SUM(oi.amount_paid), 0)                AS paid_rmb,
       BOOL_OR(oi.status = 'overdue')                  AS has_overdue
     FROM orders o
     LEFT JOIN suppliers s          ON s.id       = o.supplier_id
     LEFT JOIN order_instalments oi ON oi.order_id = o.id
     WHERE o.id = ${id}
-    GROUP BY o.id, o.supplier_id, o.total_usd, o.status, o.notes, o.order_date, o.updated_at, s.name
+    GROUP BY o.id, o.supplier_id, o.total_rmb, o.status, o.notes, o.order_date, o.updated_at, s.name
   `;
   if (!row) return null;
 
   return {
     ...row,
-    paid_usd:       Number(row.paid_usd),
+    paid_rmb:       Number(row.paid_rmb),
     payment_status: derivePaymentStatus(
-      Number(row.total_usd),
-      Number(row.paid_usd),
+      Number(row.total_rmb),
+      Number(row.paid_rmb),
       row.has_overdue,
     ),
   };
@@ -131,11 +131,11 @@ export async function fetchFilteredOrders(
 ): Promise<OrderWithPaymentStatus[]> {
   const offset = (page - 1) * perPage;
 
-  const rows = await sql<(Order & { paid_usd: string; has_overdue: boolean })[]>`
+  const rows = await sql<(Order & { paid_rmb: string; has_overdue: boolean })[]>`
     SELECT
-      o.id, o.supplier_id, o.total_usd, o.status, o.notes, o.order_date, o.updated_at,
+      o.id, o.supplier_id, o.total_rmb, o.status, o.notes, o.order_date, o.updated_at,
       s.name                                          AS supplier_name,
-      COALESCE(SUM(oi.amount_paid), 0)                AS paid_usd,
+      COALESCE(SUM(oi.amount_paid), 0)                AS paid_rmb,
       BOOL_OR(oi.status = 'overdue')                  AS has_overdue
     FROM orders o
     LEFT JOIN suppliers s          ON s.id       = o.supplier_id
@@ -144,17 +144,17 @@ export async function fetchFilteredOrders(
       s.name         ILIKE ${'%' + query + '%'} OR
       o.notes        ILIKE ${'%' + query + '%'} OR
       o.status::text ILIKE ${'%' + query + '%'}
-    GROUP BY o.id, o.supplier_id, o.total_usd, o.status, o.notes, o.order_date, o.updated_at, s.name
+    GROUP BY o.id, o.supplier_id, o.total_rmb, o.status, o.notes, o.order_date, o.updated_at, s.name
     ORDER BY o.order_date DESC
     LIMIT ${perPage} OFFSET ${offset}
   `;
 
   return rows.map((r) => ({
     ...r,
-    paid_usd:       Number(r.paid_usd),
+    paid_rmb:       Number(r.paid_rmb),
     payment_status: derivePaymentStatus(
-      Number(r.total_usd),
-      Number(r.paid_usd),
+      Number(r.total_rmb),
+      Number(r.paid_rmb),
       r.has_overdue,
     ),
   }));
@@ -192,10 +192,10 @@ export async function getOrderWithItems(id: string): Promise<OrderWithItems | nu
  */
 export async function createOrder(input: CreateOrderInput): Promise<OrderWithPaymentStatus> {
   const [row] = await sql<Order[]>`
-    INSERT INTO orders (supplier_id, total_usd, notes, order_date)
+    INSERT INTO orders (supplier_id, total_rmb, notes, order_date)
     VALUES (
       ${input.supplier_id ?? null},
-      ${input.total_usd.toFixed(2)}::numeric,
+      ${input.total_rmb.toFixed(2)}::numeric,
       ${input.notes      ?? null},
       ${input.order_date ?? new Date()}
     )
@@ -204,7 +204,7 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderWithPay
 
   return {
     ...row,
-    paid_usd:       0,
+    paid_rmb:       0,
     payment_status: 'pending',
   };
 }

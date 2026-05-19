@@ -5,7 +5,13 @@ import { getWallet }         from '@/app/lib/db/wallet';
 import { getWalletAccounts, getRecentTransfers } from '@/app/lib/db/wallet-accounts';
 import WalletClient          from '@/app/ui/wallet/wallet-client';
 
-async function getLiveRate(): Promise<{ rate: number; updatedAt: string } | null> {
+type LiveRates = {
+  egpPerUsd: number;
+  rmbPerUsd: number;
+  updatedAt: string;
+};
+
+async function getLiveRates(): Promise<LiveRates | null> {
   try {
     const apiKey = process.env.EXCHANGE_RATE_API_KEY;
     if (!apiKey) return null;
@@ -16,18 +22,22 @@ async function getLiveRate(): Promise<{ rate: number; updatedAt: string } | null
     if (!res.ok) return null;
     const data = await res.json();
     if (data.result !== 'success') return null;
-    return { rate: data.conversion_rates.EGP, updatedAt: data.time_last_update_utc };
+    return {
+      egpPerUsd: data.conversion_rates.EGP,
+      rmbPerUsd: data.conversion_rates.CNY,
+      updatedAt: data.time_last_update_utc,
+    };
   } catch {
     return null;
   }
 }
 
 export default async function Page() {
-  const [wallet, accounts, recentTransfers, rateData] = await Promise.all([
+  const [wallet, accounts, recentTransfers, liveRates] = await Promise.all([
     getWallet(),
     getWalletAccounts(),
     getRecentTransfers(5),
-    getLiveRate(),
+    getLiveRates(),
   ]);
 
   return (
@@ -38,10 +48,10 @@ export default async function Page() {
       <WalletClient
         egpBalance={Number(wallet.egp_balance)}
         usdBalance={Number(wallet.usd_balance)}
+        rmbBalance={Number(wallet.rmb_balance)}
         accounts={accounts}
         recentTransfers={recentTransfers}
-        liveRate={rateData?.rate ?? null}
-        rateUpdatedAt={rateData?.updatedAt ?? null}
+        liveRates={liveRates}
       />
     </div>
   );

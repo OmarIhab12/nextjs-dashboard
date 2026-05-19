@@ -63,7 +63,7 @@ export default function DashboardLatestOrders({
               <OrderStatusUI status={order.status as any} />
             </span>
             <span className="text-right text-sm font-semibold tabular-nums text-gray-700">
-              ${fmt(Number(order.total_usd))}
+              ¥{fmt(Number(order.total_rmb))}
             </span>
           </Link>
         ))}

@@ -124,7 +124,7 @@ export default function OrderLineItems({
       <div className="mb-1 hidden grid-cols-[2fr_1fr_1fr_1fr_auto] gap-2 px-2 text-xs font-medium text-gray-500 md:grid">
         <span>Product</span>
         <span>Qty</span>
-        <span>Unit price (USD)</span>
+        <span>Unit price (RMB)</span>
         <span className="text-right">Total</span>
         <span />
       </div>
@@ -164,7 +164,7 @@ export default function OrderLineItems({
             {/* Unit price paid to supplier */}
             <div className="relative">
               <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-                $
+                ¥
               </span>
               <input
                 type="number"
@@ -181,7 +181,7 @@ export default function OrderLineItems({
 
             {/* Line total */}
             <span className="text-right text-sm font-semibold text-gray-700 tabular-nums">
-              ${fmt(item.unit_price * item.quantity)}
+              ¥{fmt(item.unit_price * item.quantity)}
             </span>
 
             {/* Remove */}

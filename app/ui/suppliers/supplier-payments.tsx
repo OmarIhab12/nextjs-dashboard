@@ -16,7 +16,7 @@ export default function SupplierPayments({
 }) {
   const rows: PaymentRow[] = payments.map((p) => ({
     id:             p.id,
-    amount:         p.amount_usd,
+    amount:         p.amount_rmb,
     payment_method: p.payment_method,
     paid_at:        p.paid_at,
   }));
@@ -27,7 +27,7 @@ export default function SupplierPayments({
       balanceLabel="Amount we owe"
       balanceAmount={totalOwed}
       balanceAccent="blue"
-      currencySymbol="$"
+      currencySymbol="¥"
       payments={rows}
       canAdd={totalOwed > 0}
       addButtonLabel="Record payment"

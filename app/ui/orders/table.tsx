@@ -77,7 +77,7 @@ export default async function OrdersTable({
               <MobileCardFooter>
                 <div>
                   <p className="text-sm font-semibold text-gray-800 tabular-nums">
-                    ${fmt(Number(order.total_usd))}
+                    ¥{fmt(Number(order.total_rmb))}
                   </p>
                   <div className="mt-1">
                     <Badge label={order.payment_status} colors={PAYMENT_COLORS} />
@@ -97,7 +97,7 @@ export default async function OrdersTable({
           <TableContainer>
             <TableHeader
               gridCols={COLS}
-              columns={['Supplier', 'Date', 'Total (USD)', 'Status', 'Payment']}
+              columns={['Supplier', 'Date', 'Total (RMB)', 'Status', 'Payment']}
             />
             <TableRows>
               {orders?.length === 0 && <TableEmpty message="No orders found." />}
@@ -110,7 +110,7 @@ export default async function OrdersTable({
                     {formatDateToLocal(order.order_date)}
                   </span>
                   <span className="text-sm tabular-nums text-gray-700">
-                    ${fmt(Number(order.total_usd))}
+                    ¥{fmt(Number(order.total_rmb))}
                   </span>
                   <div>
                     <OrderStatusUI status={order.status} />

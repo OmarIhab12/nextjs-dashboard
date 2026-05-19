@@ -34,7 +34,7 @@ export async function getLatestInvoices(): Promise<DashboardInvoice[]> {
 export type DashboardOrder = {
   id:            string;
   supplier_name: string | null;
-  total_usd:     string;
+  total_rmb:     string;
   status:        string;
   order_date:    string;
 };
@@ -44,7 +44,7 @@ export async function getLatestOrders(): Promise<DashboardOrder[]> {
     SELECT
       o.id,
       s.name AS supplier_name,
-      o.total_usd,
+      o.total_rmb,
       o.status,
       o.order_date::text
     FROM orders o
@@ -190,14 +190,16 @@ export async function getMonthlyPayments(): Promise<MonthlySales[]> {
 export type WalletSummary = {
   egp_balance: number;
   usd_balance: number;
+  rmb_balance: number;
 };
 
 export async function getDashboardWallet(): Promise<WalletSummary> {
-  const [row] = await sql<{ egp_balance: string; usd_balance: string }[]>`
-    SELECT egp_balance, usd_balance FROM company_wallet LIMIT 1
+  const [row] = await sql<{ egp_balance: string; usd_balance: string; rmb_balance: string }[]>`
+    SELECT egp_balance, usd_balance, rmb_balance FROM company_wallet LIMIT 1
   `;
   return {
     egp_balance: Number(row?.egp_balance ?? 0),
     usd_balance: Number(row?.usd_balance ?? 0),
+    rmb_balance: Number(row?.rmb_balance ?? 0),
   };
 }

@@ -68,7 +68,7 @@ export async function replaceOrderItems(
     // Recompute order total from items
     await tx`
       UPDATE orders
-      SET total_usd = (
+      SET total_rmb = (
         SELECT COALESCE(SUM(line_total), 0)
         FROM order_items
         WHERE order_id = ${orderId}
@@ -79,8 +79,8 @@ export async function replaceOrderItems(
     // Sync the default instalment amount to match new total
     await tx`
       UPDATE order_instalments
-      SET amount_due      = (SELECT total_usd FROM orders WHERE id = ${orderId}),
-          amount_remaining = (SELECT total_usd FROM orders WHERE id = ${orderId}) - amount_paid
+      SET amount_due      = (SELECT total_rmb FROM orders WHERE id = ${orderId}),
+          amount_remaining = (SELECT total_rmb FROM orders WHERE id = ${orderId}) - amount_paid
       WHERE order_id = ${orderId}
         AND instalment_number = 1
         AND amount_paid = 0

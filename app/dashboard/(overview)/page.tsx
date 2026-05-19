@@ -53,6 +53,7 @@ export default async function Page() {
         <DashboardWallet
           egpBalance={wallet.egp_balance}
           usdBalance={wallet.usd_balance}
+          rmbBalance={wallet.rmb_balance}
         />
       </div>
 

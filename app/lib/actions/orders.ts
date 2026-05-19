@@ -69,12 +69,12 @@ export async function createOrderAction(
 
   const { supplier_id, due_date, status, notes } = parsed.data!;
   const items     = parsedItems.data!;
-  const total_usd = items.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+  const total_rmb = items.reduce((s, i) => s + i.unit_price * i.quantity, 0);
 
   try {
     const order = await createOrder({
       supplier_id: supplier_id || undefined,
-      total_usd,
+      total_rmb,
       notes:       notes || undefined,
       order_date:  due_date ? new Date(due_date) : undefined,
     });
