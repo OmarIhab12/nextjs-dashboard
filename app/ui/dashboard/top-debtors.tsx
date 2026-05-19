@@ -38,7 +38,7 @@ export default function DashboardTopDebtors({
                 </div>
               </div>
               <span className="text-sm font-semibold tabular-nums text-red-600">
-                EGP {fmt(Number(d.amount_owed))}
+                E£ {fmt(Number(d.amount_owed))}
               </span>
             </div>
             {/* Progress bar */}

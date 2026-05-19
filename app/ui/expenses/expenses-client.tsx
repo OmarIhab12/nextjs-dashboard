@@ -295,7 +295,7 @@ function ExpenseTable({
               <div key={row._key}>
                 <div className={`grid ${COLS} items-center gap-2 px-3 py-2 transition-colors ${
                   isEditing ? 'bg-blue-50/40' : 'hover:bg-gray-50/50'
-                } ${!row.is_active && !isEditing ? 'opacity-50' : ''}`}>
+                } ${row.recurrence === 'monthly' && ! row.is_active && !isEditing ? 'opacity-50' : ''}`}>
 
                   {/* Category + description */}
                   {isEditing ? (
@@ -352,7 +352,7 @@ function ExpenseTable({
                   {/* Amount */}
                   {isEditing ? (
                     <div className="relative">
-                      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">EGP</span>
+                      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">E£</span>
                       <EditInput
                         value={state.amount_egp}
                         onChange={(v) => setEdit(row._key, { amount_egp: v })}
@@ -361,7 +361,7 @@ function ExpenseTable({
                     </div>
                   ) : (
                     <span className="text-sm tabular-nums text-gray-700">
-                      EGP {fmt(Number(row.amount_egp))}
+                      E£ {fmt(Number(row.amount_egp))}
                     </span>
                   )}
 
@@ -400,7 +400,7 @@ function ExpenseTable({
                           className="rounded-md p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
                           <PencilIcon className="h-4 w-4" />
                         </button>
-                        {row.is_active && (
+                        {row.recurrence === 'monthly' && row.is_active && (
                           <button type="button"
                             onClick={() => handleDeactivate(row)}
                             disabled={isPending} title="Deactivate"

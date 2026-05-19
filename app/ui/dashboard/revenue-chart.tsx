@@ -17,13 +17,17 @@ function fmt(n: number) {
 
 export default function DashboardRevenueChart({
   data,
+  title = 'Revenue',
+  color = '#3b82f6',
 }: {
   data: MonthlySales[];
+  title?: string;
+  color?: string;
 }) {
   const hasData = data.some((d) => d.revenue > 0);
 
   return (
-    <DashboardCard title="Monthly Sales · Last 12 Months">
+    <DashboardCard title={title}>
       {!hasData ? (
         <p className="py-8 text-center text-sm text-gray-300">No sales data yet.</p>
       ) : (
@@ -53,10 +57,10 @@ export default function DashboardRevenueChart({
             <Line
               type="monotone"
               dataKey="revenue"
-              stroke="#3b82f6"
+              stroke= {color}
               strokeWidth={2}
-              dot={{ r: 4, fill: '#3b82f6', strokeWidth: 0 }}
-              activeDot={{ r: 6, fill: '#2563eb', strokeWidth: 0 }}
+              dot={{ r: 4, fill: color, strokeWidth: 0 }}
+              activeDot={{ r: 6, fill: color, strokeWidth: 0 }}
             />
           </LineChart>
         </ResponsiveContainer>

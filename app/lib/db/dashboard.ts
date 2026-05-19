@@ -166,6 +166,25 @@ export async function getMonthlySales(): Promise<MonthlySales[]> {
   return rows.map((r) => ({ month: r.month, revenue: Number(r.revenue) }));
 }
 
+export async function getMonthlyPayments(): Promise<MonthlySales[]> {
+  const rows = await sql<{ month: string; revenue: string }[]>`
+    SELECT
+      TO_CHAR(gs.month_start, 'Mon YY')        AS month,
+      COALESCE(SUM(p.amount), 0)::text           AS revenue
+    FROM generate_series(
+      DATE_TRUNC('month', NOW() - INTERVAL '11 months'),
+      DATE_TRUNC('month', NOW()),
+      '1 month'::interval
+    ) AS gs(month_start)
+    LEFT JOIN payments p
+      ON DATE_TRUNC('month', p.created_at) = gs.month_start
+    GROUP BY gs.month_start
+    ORDER BY gs.month_start ASC
+  `;
+
+  return rows.map((r) => ({ month: r.month, revenue: Number(r.revenue) }));
+}
+
 // ── Wallet summary ────────────────────────────────────────────────────────────
 
 export type WalletSummary = {

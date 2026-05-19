@@ -46,7 +46,7 @@ function TotalCard({
         Total {currency}
       </p>
       <p className={`mt-1 text-3xl font-bold tabular-nums ${accent ? 'text-blue-700' : 'text-gray-800'}`}>
-        {currency === 'EGP' ? 'EGP' : '$'} {fmt(amount)}
+        {currency === 'EGP' ? 'E£' : '$'} {fmt(amount)}
       </p>
     </div>
   );
@@ -60,7 +60,7 @@ function AccountBreakdown({
   currency: 'EGP' | 'USD'; accounts: WalletAccount[];
 }) {
   const filtered = accounts.filter((a) => a.currency === currency);
-  const total    = filtered.reduce((s, a) => s + Number(a.balance), 0);
+  const total    = filtered.reduce((s, a) => s + (Number(a.balance) > 0 ? Number(a.balance) : 0), 0);
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-4">
@@ -69,25 +69,31 @@ function AccountBreakdown({
       </p>
       <div className="space-y-2">
         {filtered.map((acc) => {
-          const pct = total > 0 ? (Number(acc.balance) / total) * 100 : 0;
+          const pct = Number(acc.balance) >= 0 ? (Number(acc.balance) / total) * 100 : Number(acc.balance);
+  
           const color = METHOD_COLORS[acc.method] ?? 'bg-gray-50 border-gray-100 text-gray-600';
           return (
             <div key={acc.id} className="flex items-center gap-3">
-              <span className={`w-32 rounded-full border text-xs font-medium text-center flex-shrink-0 ${color}`}>
                 
                   <BankAccounts account={acc.method} />
                 
-              </span>
               <div className="flex-1">
                 <div className="h-1.5 w-full rounded-full bg-gray-100">
+                  {Number(acc.balance) >= 0 ? (
+                    <div
+                      className="h-1.5 rounded-full bg-gray-400 transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  ) : 
                   <div
-                    className="h-1.5 rounded-full bg-gray-400 transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
+                      className="h-1.5 rounded-full bg-red-400 transition-all"
+                      style={{ width: `100%` }}
+                    />
+                    }
                 </div>
               </div>
               <span className="w-32 text-right text-sm font-semibold tabular-nums text-gray-700">
-                {currency === 'EGP' ? 'EGP' : '$'} {fmt(Number(acc.balance))}
+                {currency === 'EGP' ? 'E£' : '$'} {fmt(Number(acc.balance))}
               </span>
             </div>
           );
@@ -427,7 +433,7 @@ export default function WalletClient({
         <div className="rounded-xl border border-gray-100 bg-white px-5 py-3">
           <p className="text-xs text-gray-400">Total value in EGP (at live rate)</p>
           <p className="mt-0.5 text-xl font-bold tabular-nums text-gray-800">
-            EGP {fmt(egpBalance + usdBalance * liveRate)}
+            E£ {fmt(egpBalance + usdBalance * liveRate)}
           </p>
         </div>
       )}

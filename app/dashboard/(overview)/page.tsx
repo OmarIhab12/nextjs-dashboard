@@ -10,6 +10,7 @@ import {
   getMonthlySales,
   getDashboardWallet,
   getTopCustomersByRevenue,
+  getMonthlyPayments,
 } from '@/app/lib/db/dashboard';
 import DashboardLatestInvoices from '@/app/ui/dashboard/latest-invoices';
 import DashboardLatestOrders   from '@/app/ui/dashboard/latest-orders';
@@ -29,6 +30,7 @@ export default async function Page() {
     monthlySales,
     wallet,
     topCustomers,
+    monthlyPayments,
   ] = await Promise.all([
     getLatestInvoices(),
     getLatestOrders(),
@@ -37,6 +39,7 @@ export default async function Page() {
     getMonthlySales(),
     getDashboardWallet(),
     getTopCustomersByRevenue(),
+    getMonthlyPayments(),
   ]);
 
   return (
@@ -55,7 +58,12 @@ export default async function Page() {
 
       {/* ── Revenue chart — full width ── */}
       <div className="mb-6">
-        <DashboardRevenueChart data={monthlySales} />
+        <DashboardRevenueChart data={monthlySales} title="Monthly Sales · Last 12 Months" color="#2563eb" />
+      </div>
+
+      {/* ── Payments chart — full width ── */}
+      <div className="mb-6">
+        <DashboardRevenueChart data={monthlyPayments} title="Monthly Income · Last 12 Months" color="#10b981" />
       </div>
 
       {/* ── Latest invoices + Latest orders ── */}

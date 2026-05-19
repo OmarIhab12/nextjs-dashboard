@@ -29,7 +29,7 @@ export default async function Page() {
             Total Outstanding
           </p>
           <p className="mt-1 text-2xl font-bold tabular-nums text-red-700">
-            EGP {fmt(total)}
+            E£ {fmt(total)}
           </p>
         </div>
         <div className="rounded-xl border border-gray-100 bg-gray-50 px-5 py-4">
@@ -64,7 +64,7 @@ export default async function Page() {
             <p className="text-sm font-medium text-gray-800">{d.name}</p>
             <div className="flex flex-col items-end gap-1">
               <span className="text-sm font-semibold tabular-nums text-red-600">
-                EGP {fmt(Number(d.amount_owed))}
+                E£ {fmt(Number(d.amount_owed))}
               </span>
               <div className="h-1.5 w-full max-w-[120px] rounded-full bg-gray-100">
                 <div
