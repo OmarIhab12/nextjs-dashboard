@@ -1,24 +1,30 @@
 // app/dashboard/(overview)/page.tsx
 
 import { lusitana }          from '@/app/ui/fonts';
-import { Suspense }           from 'react';
 import {
   getLatestInvoices,
   getLatestOrders,
   getTopProducts,
   getTopDebtors,
-  getMonthlySales,
   getDashboardWallet,
   getTopCustomersByRevenue,
-  getMonthlyPayments,
+  getInventoryValue,
+  getPendingShipments,
+  getMonthlyNetFlow,
+  getInvoicesByStatus,
+  type MonthlyNetFlow,
 } from '@/app/lib/db/dashboard';
 import DashboardLatestInvoices from '@/app/ui/dashboard/latest-invoices';
 import DashboardLatestOrders   from '@/app/ui/dashboard/latest-orders';
 import DashboardTopProducts    from '@/app/ui/dashboard/top-products';
-import DashboardTopBuyers     from '@/app/ui/dashboard/top-customers';
+import DashboardTopBuyers      from '@/app/ui/dashboard/top-customers';
 import DashboardWallet         from '@/app/ui/dashboard/wallet-card';
-import DashboardRevenueChart   from '@/app/ui/dashboard/revenue-chart';
-import DashboardTopDebtors    from '@/app/ui/dashboard/top-debtors';
+import DashboardTopDebtors     from '@/app/ui/dashboard/top-debtors';
+import CashFlowChart           from '@/app/ui/dashboard/cash-flow-chart';
+import InvoiceStatusChart      from '@/app/ui/dashboard/invoice-status-chart';
+import InventoryCard           from '@/app/ui/dashboard/inventory-card';
+import PendingShipmentsCard    from '@/app/ui/dashboard/pending-shipments-card';
+import { getRmbToEgpRate }     from '@/app/lib/exchange-rate';
 
 export const dynamic = 'force-dynamic';
 export default async function Page() {
@@ -27,20 +33,34 @@ export default async function Page() {
     orders,
     topProducts,
     topDebtors,
-    monthlySales,
     wallet,
     topCustomers,
-    monthlyPayments,
+    inventory,
+    shipments,
+    rmbToEgp,
+    netFlow,
+    invoicesByStatus,
   ] = await Promise.all([
     getLatestInvoices(),
     getLatestOrders(),
     getTopProducts(),
     getTopDebtors(),
-    getMonthlySales(),
     getDashboardWallet(),
     getTopCustomersByRevenue(),
-    getMonthlyPayments(),
+    getInventoryValue(),
+    getPendingShipments(),
+    getRmbToEgpRate(),
+    getMonthlyNetFlow(),
+    getInvoicesByStatus(),
   ]);
+
+  const cashFlowData = netFlow.map((d: MonthlyNetFlow) => ({
+    month:             d.month,
+    sales:             d.sales,
+    payments:          d.payments,
+    expenses:          d.expenses,
+    supplier_payments: rmbToEgp > 0 ? d.supplier_payments_rmb * rmbToEgp : 0,
+  }));
 
   return (
     <main>
@@ -48,7 +68,7 @@ export default async function Page() {
         Dashboard
       </h1>
 
-      {/* ── Wallet summary — top full width ── */}
+      {/* ── Wallet summary ── */}
       <div className="mb-6">
         <DashboardWallet
           egpBalance={wallet.egp_balance}
@@ -57,14 +77,19 @@ export default async function Page() {
         />
       </div>
 
-      {/* ── Revenue chart — full width ── */}
+      {/* ── Inventory summary ── */}
       <div className="mb-6">
-        <DashboardRevenueChart data={monthlySales} title="Monthly Sales · Last 12 Months" color="#2563eb" />
+        <InventoryCard inventory={inventory} />
       </div>
 
-      {/* ── Payments chart — full width ── */}
+      {/* ── Pending shipments ── */}
       <div className="mb-6">
-        <DashboardRevenueChart data={monthlyPayments} title="Monthly Income · Last 12 Months" color="#10b981" />
+        <PendingShipmentsCard shipments={shipments} rmbToEgp={rmbToEgp} />
+      </div>
+
+      {/* ── Net cash flow chart ── */}
+      <div className="mb-6">
+        <CashFlowChart data={cashFlowData} />
       </div>
 
       {/* ── Latest invoices + Latest orders ── */}
@@ -73,14 +98,15 @@ export default async function Page() {
         <DashboardLatestOrders   orders={orders} />
       </div>
 
-      {/* ── Top products + Top buyers ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      {/* ── Top products + Invoice status ── */}
+      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <DashboardTopProducts products={topProducts} />
-        <DashboardTopBuyers customers={topCustomers} />
+        <InvoiceStatusChart data={invoicesByStatus} />
       </div>
 
-      {/* ── Top products + Top debtors ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      {/* ── Top buyers + Top debtors ── */}
+      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <DashboardTopBuyers customers={topCustomers} />
         <DashboardTopDebtors debtors={topDebtors} />
       </div>
     </main>

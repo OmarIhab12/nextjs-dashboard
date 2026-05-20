@@ -37,15 +37,15 @@ export default function DashboardTopCustomers({
                   {b.email && <p className="text-xs text-gray-400">{b.email}</p>}
                 </div>
               </div>
-              <span className="text-sm font-semibold tabular-nums text-amber-600">
+              <span className="text-sm font-semibold tabular-nums" style={{ color: '#C09300' }}>
                 E£ {fmt(Number(b.total))}
               </span>
             </div>
             {/* Progress bar */}
             <div className="h-1.5 w-full rounded-full bg-gray-100">
               <div
-                className="h-1.5 rounded-full bg-amber-400"
-                style={{ width: `${(Number(b.total) / maxPurchase) * 100}%` }}
+                className="h-1.5 rounded-full" 
+                style={{ width: `${(Number(b.total) / maxPurchase) * 100}%`, backgroundColor: '#C09300' }}
               />
             </div>
           </Link>

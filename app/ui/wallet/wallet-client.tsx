@@ -45,14 +45,8 @@ const METHOD_LABELS: Record<string, string> = {
   vodafone_cash: 'Vodafone Cash',
 };
 
-const METHOD_COLORS: Record<string, string> = {
-  bank_transfer: 'bg-blue-50 border-blue-100 text-blue-700',
-  cash:          'bg-green-50 border-green-100 text-green-700',
-  check:         'bg-purple-50 border-purple-100 text-purple-700',
-  vodafone_cash: 'bg-red-50 border-red-100 text-red-700',
-};
 
-const inputClass = 'block w-full rounded-md border border-gray-200 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400';
+const inputClass = 'block w-full rounded-md border border-gray-200 py-2 text-sm outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400';
 
 // ── Total Balance Card ────────────────────────────────────────────────────────
 
@@ -75,6 +69,18 @@ function TotalCard({
 
 // ── Account Breakdown ─────────────────────────────────────────────────────────
 
+const CURRENCY_COLORS: Record<'EGP' | 'USD' | 'RMB', {
+  labelClass:   string;
+  labelStyle?:  React.CSSProperties;
+  barColor:     string;
+  amountClass:  string;
+  amountStyle?: React.CSSProperties;
+}> = {
+  EGP: { labelClass: '',               labelStyle: { color: '#C09300' }, barColor: '#C09300',  amountClass: '',               amountStyle: { color: '#C09300' } },
+  USD: { labelClass: 'text-green-500',                                    barColor: '#22c55e',  amountClass: 'text-green-700'  },
+  RMB: { labelClass: 'text-red-400',                                      barColor: '#f87171',  amountClass: 'text-red-600'    },
+};
+
 function AccountBreakdown({
   currency, accounts,
 }: {
@@ -82,38 +88,32 @@ function AccountBreakdown({
 }) {
   const filtered = accounts.filter((a) => a.currency === currency);
   const total    = filtered.reduce((s, a) => s + (Number(a.balance) > 0 ? Number(a.balance) : 0), 0);
+  const c        = CURRENCY_COLORS[currency];
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-4">
-      <p className="mb-3 text-xs font-medium uppercase tracking-wide text-gray-400">
+      <p className={`mb-3 text-xs font-medium uppercase tracking-wide ${c.labelClass}`} style={c.labelStyle}>
         {currency} Accounts
       </p>
       <div className="space-y-2">
         {filtered.map((acc) => {
-          const pct = Number(acc.balance) >= 0 ? (Number(acc.balance) / total) * 100 : Number(acc.balance);
-  
-          const color = METHOD_COLORS[acc.method] ?? 'bg-gray-50 border-gray-100 text-gray-600';
+          const pct = Number(acc.balance) >= 0 ? (Number(acc.balance) / total) * 100 : 0;
           return (
             <div key={acc.id} className="flex items-center gap-3">
-                
-                  <BankAccounts account={acc.method} />
-                
+              <BankAccounts account={acc.method} />
               <div className="flex-1">
                 <div className="h-1.5 w-full rounded-full bg-gray-100">
                   {Number(acc.balance) >= 0 ? (
                     <div
-                      className="h-1.5 rounded-full bg-gray-400 transition-all"
-                      style={{ width: `${pct}%` }}
+                      className="h-1.5 rounded-full transition-all"
+                      style={{ width: `${pct}%`, backgroundColor: c.barColor }}
                     />
-                  ) : 
-                  <div
-                      className="h-1.5 rounded-full bg-red-400 transition-all"
-                      style={{ width: `100%` }}
-                    />
-                    }
+                  ) : (
+                    <div className="h-1.5 w-full rounded-full bg-red-400 transition-all" />
+                  )}
                 </div>
               </div>
-              <span className="w-32 text-right text-sm font-semibold tabular-nums text-gray-700">
+              <span className={`w-32 text-right text-sm font-semibold tabular-nums ${c.amountClass}`} style={c.amountStyle}>
                 {currency === 'EGP' ? 'E£' : currency === 'USD' ? '$' : '¥'} {fmt(Number(acc.balance))}
               </span>
             </div>
@@ -366,7 +366,8 @@ function ConversionForm({
               const live = liveRates ? pairRate(fromCurrency, toCurrency, liveRates) : null;
               return live ? (
                 <button type="button" onClick={() => handleRateChange(live.toFixed(4))}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-0.5 text-xs text-blue-500 hover:bg-blue-50 transition-colors">
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-0.5 text-xs hover:bg-amber-50 transition-colors"
+                  style={{ color: '#C09300' }}>
                   Use live rate
                 </button>
               ) : null;
@@ -443,8 +444,8 @@ function RateBadge({ liveRates }: { liveRates: LiveRates | null }) {
     <div className="rounded-lg border border-gray-100 bg-white px-4 py-3">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <div className="rounded-full bg-green-50 p-1.5">
-            <ArrowsRightLeftIcon className="h-4 w-4 text-green-600" />
+          <div className="rounded-full bg-amber-50 p-1.5">
+            <ArrowsRightLeftIcon className="h-4 w-4" style={{ color: '#C09300' }} />
           </div>
           <p className="text-xs text-gray-400">Live exchange rates</p>
         </div>
@@ -452,13 +453,13 @@ function RateBadge({ liveRates }: { liveRates: LiveRates | null }) {
       </div>
       <div className="flex flex-wrap gap-x-6 gap-y-1">
         <p className="text-sm font-semibold text-gray-800">
-          1 USD = <span className="text-blue-600">{fmt(egpPerUsd, 4)} EGP</span>
+          1 USD = <span style={{ color: '#C09300' }}>{fmt(egpPerUsd, 4)} EGP</span>
         </p>
         <p className="text-sm font-semibold text-gray-800">
           1 USD = <span className="text-red-600">{fmt(rmbPerUsd, 4)} RMB</span>
         </p>
         <p className="text-sm font-semibold text-gray-800">
-          1 RMB = <span className="text-amber-600">{fmt(egpPerRmb, 4)} EGP</span>
+          1 RMB = <span style={{ color: '#C09300' }}>{fmt(egpPerRmb, 4)} EGP</span>
         </p>
       </div>
     </div>
@@ -489,9 +490,9 @@ export default function WalletClient({
 
       {/* ── Combined value ── */}
       {liveRates && (
-        <div className="rounded-xl border border-gray-100 bg-white px-5 py-3">
-          <p className="text-xs text-gray-400">Total value in EGP (at live rates)</p>
-          <p className="mt-0.5 text-xl font-bold tabular-nums text-gray-800">
+        <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-5 py-3">
+          <p className="text-xs font-medium uppercase tracking-wide" style={{ color: '#C09300' }}>Total value in EGP (at live rates)</p>
+          <p className="mt-0.5 text-xl font-bold tabular-nums" style={{ color: '#C09300' }}>
             E£ {fmt(egpBalance + usdBalance * liveRates.egpPerUsd + rmbBalance * (liveRates.egpPerUsd / liveRates.rmbPerUsd))}
           </p>
         </div>

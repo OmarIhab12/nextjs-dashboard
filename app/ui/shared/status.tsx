@@ -1,4 +1,4 @@
-import { CheckIcon, ClockIcon, XCircleIcon, CalendarDaysIcon, ArrowDownOnSquareIcon, ArrowUpTrayIcon, BanknotesIcon } from '@heroicons/react/24/outline';
+import { CheckIcon, ClockIcon, XCircleIcon, CalendarDaysIcon, ArrowDownOnSquareIcon, ArrowUpTrayIcon, BanknotesIcon, TruckIcon } from '@heroicons/react/24/outline';
 import { MdDownloading } from "react-icons/md";
 import { FcShipped } from "react-icons/fc";
 import { RiDraftLine, RiCheckDoubleFill } from "react-icons/ri";
@@ -27,7 +27,7 @@ export function InvoiceStatus({ status }: { status: string }) {
       {status === 'shipped' ? (
         <>
           Shipped
-          <ArrowUpTrayIcon className="ml-1 w-4 text-white" />
+          <TruckIcon className="ml-1 w-4 text-white" />
         </>
       ) : null}
       {status === 'confirmed' ? (
@@ -110,7 +110,7 @@ export function OrderStatusUI({ status }: { status: string }) {
       {status === 'shipped' ? (
         <>
           Shipped
-          <ArrowUpTrayIcon className="ml-1 w-4 text-white" />
+          <TruckIcon className="ml-1 w-4 text-white" />
         </>
       ) : null}
       {status === 'arrived' ? (

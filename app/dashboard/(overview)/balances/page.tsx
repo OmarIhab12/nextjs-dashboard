@@ -1,8 +1,10 @@
 // app/dashboard/(overview)/balances/page.tsx
 
-import { lusitana }      from '@/app/ui/fonts';
-import { getAllDebtors } from '@/app/lib/db/dashboard';
-import Link              from 'next/link';
+import { lusitana }          from '@/app/ui/fonts';
+import { getAllDebtors }      from '@/app/lib/db/dashboard';
+import { BanknotesIcon, UsersIcon } from '@heroicons/react/24/outline';
+import StatCard               from '@/app/ui/dashboard/stat-card';
+import Link                   from 'next/link';
 
 function fmt(n: number) {
   return new Intl.NumberFormat('en-US', {
@@ -23,21 +25,21 @@ export default async function Page() {
       <h1 className={`${lusitana.className} mb-6 text-2xl`}>Outstanding Balances</h1>
 
       {/* Summary cards */}
-      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-red-100 bg-red-50 px-5 py-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-red-500">
-            Total Outstanding
-          </p>
-          <p className="mt-1 text-2xl font-bold tabular-nums text-red-700">
-            E£ {fmt(total)}
-          </p>
-        </div>
-        <div className="rounded-xl border border-gray-100 bg-gray-50 px-5 py-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
-            Customers with Balance
-          </p>
-          <p className="mt-1 text-2xl font-bold text-gray-800">{debtors.length}</p>
-        </div>
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <StatCard
+          href="/dashboard/balances"
+          icon={BanknotesIcon}
+          color="orange"
+          title="Total Outstanding"
+          value={`E£ ${fmt(total)}`}
+        />
+        <StatCard
+          href="/dashboard/balances"
+          icon={UsersIcon}
+          color="orange"
+          title="Customers with Balance"
+          value={String(debtors.length)}
+        />
       </div>
 
       {/* Table */}
@@ -58,17 +60,17 @@ export default async function Page() {
           <Link
             key={d.id}
             href={`/dashboard/customers/${d.id}`}
-            className={`grid ${COLS} items-center gap-3 border-b border-gray-50 px-4 py-3 last:border-0 hover:bg-gray-50/50 transition-colors`}
+            className={`grid ${COLS} items-center gap-3 border-b border-gray-50 px-4 py-3 last:border-0 hover:bg-orange-50/50 transition-colors`}
           >
             <span className="text-sm font-medium text-gray-400">{i + 1}</span>
             <p className="text-sm font-medium text-gray-800">{d.name}</p>
             <div className="flex flex-col items-end gap-1">
-              <span className="text-sm font-semibold tabular-nums text-red-600">
+              <span className="text-sm font-semibold tabular-nums text-orange-600">
                 E£ {fmt(Number(d.amount_owed))}
               </span>
-              <div className="h-1.5 w-full max-w-[120px] rounded-full bg-gray-100">
+              <div className="h-1.5 w-full max-w-[120px] rounded-full bg-orange-100">
                 <div
-                  className="h-1.5 rounded-full bg-red-400"
+                  className="h-1.5 rounded-full bg-orange-400"
                   style={{ width: `${(Number(d.amount_owed) / maxDebt) * 100}%` }}
                 />
               </div>
