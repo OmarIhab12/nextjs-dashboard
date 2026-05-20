@@ -42,6 +42,11 @@ function ar(text: string): string {
   return reshaper.convertArabic(text);
 }
 
+// Returns true if the string contains at least one Arabic character.
+function isArabic(text: string): boolean {
+  return /[؀-ۿ]/.test(text);
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 export type InvoicePDFData = {
   id:             string;
@@ -261,15 +266,31 @@ export function InvoicePDF({ invoice }: { invoice: InvoicePDFData }) {
 
         {/* ── Customer & Date row (RTL: name on right, date on left) ── */}
         <View style={s.metaRow}>
-          <Text style={s.metaText}>
+          {/* <Text style={s.metaText}>
             {ar(invoice.customerName)}
             <Text style={s.metaLabel}>{ar('  : الاسم ')}</Text>
-          </Text>
+          </Text> */}
+          {isArabic(invoice.customerName) ? (
+            <>
+            <Text style={s.metaText}>
+              <Text style={s.metaLabel}>{ar('الأسم ')}</Text>
+              : 
+              {ar(invoice.customerName)}
+            </Text>
+            </>
+          ) : (
+            <>
+              <Text style={s.metaText}>
+                {ar(invoice.customerName)}
+                <Text style={s.metaLabel}>{ar('  : الأسم ')}</Text>
+              </Text>
+            </>
+          )}
         </View>
 
         <View style={s.metaRow}>
           <Text style={s.metaText}>
-            <Text style={s.metaLabel}>{ar('التاريخ: ') + formatDate(invoice.createdAt)}</Text>
+            <Text style={s.metaLabel}>{ar('التاريخ : ') + formatDate(invoice.createdAt)}</Text>
           </Text>
           
         </View>

@@ -23,7 +23,7 @@ function fmt(n: number) {
 }
 
 const LINES: { key: keyof CashFlowRow; label: string; color: string; dashed?: boolean }[] = [
-  { key: 'sales',label: 'Invoiced',color: '#22c55e'  },
+  { key: 'sales',label: 'Invoiced',color: '#7E22CE'  },
   { key: 'payments',label: 'Collected',color: '#C09300', dashed: true },
   { key: 'expenses',label: 'Expenses',color: '#2563eb'  },
   { key: 'supplier_payments', label: 'Supplier Payments (≈ E£)', color: '#ef4444', dashed: true },

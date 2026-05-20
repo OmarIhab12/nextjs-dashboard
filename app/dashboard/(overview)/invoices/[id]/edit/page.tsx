@@ -3,7 +3,7 @@ import Breadcrumbs from '@/app/ui/invoices/breadcrumbs';
 import { getInvoiceById } from '@/app/lib/db/invoices';
 import { getAllCustomers } from '@/app/lib/db/customers';
 import { notFound } from 'next/navigation';
-import { getAllProducts } from '@/app/lib/db/products';
+import { getActiveAvailableProducts } from '@/app/lib/db/products';
 import { DownloadPDFButton } from '@/app/ui/button';
 import { unstable_noStore as noStore } from 'next/cache';
  
@@ -16,7 +16,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   const [invoice, customers, products] = await Promise.all([
     getInvoiceById(id),
     getAllCustomers(),
-    getAllProducts(),
+    getActiveAvailableProducts(),
   ]);
 
   noStore();

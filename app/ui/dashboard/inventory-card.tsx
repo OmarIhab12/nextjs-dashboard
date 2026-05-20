@@ -21,7 +21,7 @@ export default function InventoryCard({ inventory }: { inventory: InventorySumma
         title="Inventory Value" value={`E£ ${fmt(inventory.total_value)}`} />
       <StatCard href="/dashboard/products" icon={CubeIcon} color="blue"
         title="Units in Stock" value={fmtInt(inventory.total_units)} />
-      <StatCard href="/dashboard/products" icon={ArchiveBoxIcon} color="purple"
+      <StatCard href="/dashboard/products" icon={ArchiveBoxIcon} color="blue"
         title="Active Products" value={fmtInt(inventory.total_products)} />
     </div>
   );

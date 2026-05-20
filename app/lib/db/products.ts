@@ -33,6 +33,14 @@ export async function getAllProducts(activeOnly = false): Promise<Product[]> {
   `;
 }
 
+export async function getActiveAvailableProducts(): Promise<Product[]> {
+  return sql<Product[]>`
+    SELECT * FROM products
+    WHERE is_active = TRUE AND stock_quantity > 0
+    ORDER BY name ASC
+  `;
+}
+
 export async function getProductById(id: string): Promise<Product | null> {
   const [product] = await sql<Product[]>`
     SELECT * FROM products

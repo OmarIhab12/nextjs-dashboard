@@ -1,14 +1,13 @@
-// import Pagination from '@/app/ui/invoices/pagination';
 import { lusitana } from '@/app/ui/fonts';
 import { InvoicesTableSkeleton } from '@/app/ui/skeletons';
 import { Suspense } from 'react';
 
 import Table from '@/app/ui/products/table';
-import { fetchFilteredProducts, fetchProductPages, getAllProducts } from '@/app/lib/db/products';
-import ProductSearch from '@/app/ui/search';
+import { fetchFilteredProducts, fetchProductPages } from '@/app/lib/db/products';
 import Pagination from '@/app/ui/pagination';
 import Search from '@/app/ui/search';
- 
+import { DownloadPriceListButton } from '@/app/ui/button';
+
 // app/dashboard/products/page.tsx
 export default async function Page({
   searchParams,
@@ -28,7 +27,11 @@ export default async function Page({
     <div className="w-full">
       <div className="mb-4 flex items-center gap-3">
         <h1 className={`${lusitana.className} text-2xl`}>Products</h1>
-        
+        <div className="ml-auto flex items-center gap-2">
+          <DownloadPriceListButton mode="all" />
+          <DownloadPriceListButton mode="active" />
+          <DownloadPriceListButton mode="active&available" />
+        </div>
       </div>
       <div className="mt-4 flex items-center justify-between gap-2 md:mt-8">
         <Search placeholder="Search products..." />

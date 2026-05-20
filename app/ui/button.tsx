@@ -22,6 +22,51 @@ export function Button({ children, className, ...rest }: ButtonProps) {
   );
 }
 
+type PriceListMode = 'active' | 'active&available' | 'all';
+
+const PRICE_LIST_CONFIG: Record<PriceListMode, { url: string; label: string; suffix: string }> = {
+  'active':           { url: '/api/products/pdf',             label: 'Active PDF',              suffix: 'active'    },
+  'active&available': { url: '/api/products/pdf?available=1', label: 'Active & In Stock PDF',   suffix: 'available' },
+  'all':              { url: '/api/products/pdf?all=1',       label: 'All PDF',                 suffix: 'all'       },
+};
+
+export function DownloadPriceListButton({ mode = 'active' }: { mode?: PriceListMode }) {
+  const [loading, setLoading] = useState(false);
+  const config = PRICE_LIST_CONFIG[mode];
+
+  async function handleDownload() {
+    setLoading(true);
+    try {
+      const res = await fetch(config.url);
+      if (!res.ok) throw new Error('Failed to generate price list PDF');
+
+      const blob      = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a         = document.createElement('a');
+      a.href          = objectUrl;
+      a.download      = `vinslon-price-list-${config.suffix}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      console.error(err);
+      alert('حدث خطأ أثناء إنشاء قائمة الأسعار');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={handleDownload}
+      disabled={loading}
+      className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600 shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
+    >
+      <ArrowDownTrayIcon className="h-4 w-4" />
+      {loading ? 'Generating...' : config.label}
+    </button>
+  );
+}
+
 interface Props {
   invoiceId: string;
   iconOnly?: boolean;
@@ -45,7 +90,7 @@ export function DownloadPDFButton({ invoiceId, iconOnly = false }: Props) {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
-      alert('حدث خطأ أثناء إنشاء الفاتورة');
+      alert('Failed to generate price list PDF');
     } finally {
       setLoading(false);
     }
