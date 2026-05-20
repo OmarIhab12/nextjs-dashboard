@@ -22,13 +22,13 @@ export default function DashboardWallet({
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       {/* EGP */}
       <Link href="/dashboard/wallet"
-        className="flex items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 p-5 hover:bg-gray-100 transition-colors">
+        className="flex items-center gap-4 rounded-xl border border-yellow-200 bg-yellow-50 p-5 hover:bg-yellow-100 transition-colors">
         <div className="rounded-full bg-white p-3 shadow-sm">
-          <WalletIcon className="h-5 w-5 text-gray-500" />
+          <WalletIcon className="h-5 w-5" style={{ color: '#C09300' }} />
         </div>
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-400">EGP Balance</p>
-          <p className="text-2xl font-bold tabular-nums text-gray-800">
+          <p className="text-xs font-medium uppercase tracking-wide" style={{ color: '#C09300' }}>EGP Balance</p>
+          <p className="text-2xl font-bold tabular-nums" style={{ color: '#C09300' }}>
             E£ {fmt(egpBalance)}
           </p>
         </div>
@@ -36,13 +36,13 @@ export default function DashboardWallet({
 
       {/* USD */}
       <Link href="/dashboard/wallet"
-        className="flex items-center gap-4 rounded-xl border border-blue-100 bg-blue-50 p-5 hover:bg-blue-100 transition-colors">
+        className="flex items-center gap-4 rounded-xl border border-green-100 bg-green-50 p-5 hover:bg-green-100 transition-colors">
         <div className="rounded-full bg-white p-3 shadow-sm">
-          <WalletIcon className="h-5 w-5 text-blue-500" />
+          <WalletIcon className="h-5 w-5 text-green-500" />
         </div>
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-blue-400">USD Balance</p>
-          <p className="text-2xl font-bold tabular-nums text-blue-700">
+          <p className="text-xs font-medium uppercase tracking-wide text-green-500">USD Balance</p>
+          <p className="text-2xl font-bold tabular-nums text-green-700">
             ${fmt(usdBalance)}
           </p>
         </div>

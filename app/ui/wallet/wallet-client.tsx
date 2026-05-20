@@ -7,6 +7,7 @@ import { ArrowsRightLeftIcon, ArrowRightIcon } from '@heroicons/react/24/outline
 import { createConversionAction, createTransferAction } from '@/app/lib/actions/wallet';
 import type { WalletAccount } from '@/app/lib/db/wallet-accounts';
 import { BankAccounts } from '../shared/status';
+import DashboardWallet from '@/app/ui/dashboard/wallet-card';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -391,7 +392,9 @@ function ConversionForm({
           </div>
           <div className="flex-1">
             <div className="mb-1">
-              <label className="text-xs text-gray-400">{toCurrency} amount</label>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-xs text-gray-400">{toCurrency} amount</label>
+              </div>
             </div>
             <div className="relative">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">{toSymbol}</span>
@@ -482,11 +485,7 @@ export default function WalletClient({
     <div className="space-y-6">
 
       {/* ── Total balance cards ── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <TotalCard currency="EGP" amount={egpBalance} />
-        <TotalCard currency="USD" amount={usdBalance} accent />
-        <TotalCard currency="RMB" amount={rmbBalance} />
-      </div>
+      <DashboardWallet egpBalance={egpBalance} usdBalance={usdBalance} rmbBalance={rmbBalance} />
 
       {/* ── Combined value ── */}
       {liveRates && (
