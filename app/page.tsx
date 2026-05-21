@@ -6,7 +6,7 @@ export default function Page() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-6">
       <div className="flex w-full max-w-xs flex-col items-center gap-8">
-        <div className="w-full rounded-xl bg-blue-600 p-6">
+        <div className="w-full rounded-xl bg-white-600 p-6">
           <VinslonLogo />
         </div>
         <Link

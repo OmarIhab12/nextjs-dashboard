@@ -19,10 +19,20 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
     getActiveAvailableProducts(),
   ]);
 
+
+
   noStore();
 
    if (!invoice) {
     notFound();
+  }
+
+  var customerName = 'unknown';
+  for (const customer of customers) {
+    if (customer.id === invoice.customer_id) {
+      customerName = customer.name;
+      break;
+    }
   }
 
   return (
@@ -38,7 +48,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
             },
           ]}
         />
-        <DownloadPDFButton invoiceId={id} />
+        <DownloadPDFButton invoiceId={id} customerName={customerName} />
       </div>
       <Form invoice={invoice} customers={customers} products={products}/>
     </main>

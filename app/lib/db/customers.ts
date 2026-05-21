@@ -229,6 +229,55 @@ export async function getCustomerPageData(
   return { customer, invoiceSummaries, paymentSummaries, totalOwed, totalPaid };
 }
  
+// ── Customer account statement ────────────────────────────────
+
+export type StatementTransaction = {
+  event_date: string;   // DD/MM/YYYY
+  amount:     number;   // positive = invoice, negative = payment (as stored)
+  event_type: 'invoice' | 'payment';
+};
+
+export async function getCustomerStatement(customerId: string): Promise<{
+  customer:     Customer | null;
+  transactions: StatementTransaction[];
+}> {
+  const [customer] = await sql<Customer[]>`
+    SELECT * FROM customers WHERE id = ${customerId}
+  `;
+  if (!customer) return { customer: null, transactions: [] };
+
+  const rows = await sql<{ event_date: string; amount: string; event_type: string }[]>`
+    SELECT
+      TO_CHAR(created_at, 'DD/MM/YYYY') AS event_date,
+      total::text                       AS amount,
+      'invoice'                         AS event_type
+    FROM invoices
+    WHERE customer_id = ${customerId}
+
+    UNION ALL
+
+    SELECT
+      TO_CHAR(p.paid_at, 'DD/MM/YYYY') AS event_date,
+      p.amount::text                    AS amount,
+      'payment'                         AS event_type
+    FROM payments p
+    WHERE p.invoice_id IN (
+      SELECT id FROM invoices WHERE customer_id = ${customerId}
+    )
+
+    ORDER BY event_date ASC
+  `;
+
+  return {
+    customer,
+    transactions: rows.map((r) => ({
+      event_date: r.event_date,
+      amount:     Number(r.amount),
+      event_type: r.event_type as 'invoice' | 'payment',
+    })),
+  };
+}
+
 // ── Auto-allocate payment across oldest unpaid invoices ───────
 // Returns the payment record after allocating across installments
 export async function addPaymentForCustomer(

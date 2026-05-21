@@ -67,12 +67,53 @@ export function DownloadPriceListButton({ mode = 'active' }: { mode?: PriceListM
   );
 }
 
+export function DownloadStatementButton({ customerId, customerName }: { customerId: string; customerName: string }) {
+  const [loading, setLoading] = useState(false);
+
+  async function handleDownload() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/customers/${customerId}/statement`);
+      if (!res.ok) {
+        let msg = `Server error ${res.status}`;
+        try { const d = await res.json(); msg = d.error ?? msg; if (d.stack) console.error('Server stack:\n', d.stack); } catch {}
+        throw new Error(msg);
+      }
+
+      const blob      = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a         = document.createElement('a');
+      a.href          = objectUrl;
+      a.download      = `statement-${customerName}.pdf`;
+      a.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      console.error(err);
+      alert('حدث خطأ أثناء إنشاء كشف الحساب');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={handleDownload}
+      disabled={loading}
+      className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-600 shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
+    >
+      <ArrowDownTrayIcon className="h-4 w-4" />
+      {loading ? 'Generating...' : 'PDF'}
+    </button>
+  );
+}
+
 interface Props {
   invoiceId: string;
+  customerName: string;
   iconOnly?: boolean;
 }
 
-export function DownloadPDFButton({ invoiceId, iconOnly = false }: Props) {
+export function DownloadPDFButton({ invoiceId, customerName, iconOnly = false }: Props) {
   const [loading, setLoading] = useState(false);
 
   async function handleDownload() {
@@ -85,7 +126,7 @@ export function DownloadPDFButton({ invoiceId, iconOnly = false }: Props) {
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href     = url;
-      a.download = `invoice-${invoiceId}.pdf`;
+      a.download = `invoice-${customerName}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {

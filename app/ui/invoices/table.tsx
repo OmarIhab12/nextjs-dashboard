@@ -45,7 +45,7 @@ export default async function InvoicesTable({
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <DownloadPDFButton invoiceId={invoice.id} iconOnly />
+                  <DownloadPDFButton invoiceId={invoice.id} customerName={invoice.name || 'unknown'} iconOnly />
                   <UpdateInvoice id={invoice.id} />
                   <DeleteInvoice id={invoice.id} />
                 </div>
@@ -80,7 +80,7 @@ export default async function InvoicesTable({
                   <div><InvoiceStatus status={invoice.status} /></div>
                   <div><PaymentStatus status={invoice.payment_status} /></div>
                   <TableActions>
-                    <DownloadPDFButton invoiceId={invoice.id} iconOnly />
+                    <DownloadPDFButton invoiceId={invoice.id} customerName={invoice.name || 'unknown'} iconOnly />
                     <UpdateInvoice id={invoice.id} />
                     <DeleteInvoice id={invoice.id} />
                   </TableActions>

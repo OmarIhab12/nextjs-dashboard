@@ -4,6 +4,7 @@ import CustomerDetail   from '@/app/ui/customers/customer-details';
 import CustomerInvoices from '@/app/ui/customers/customer-invoices';
 import CustomerPayments from '@/app/ui/customers/customer-payments';
 import { lusitana } from '@/app/ui/fonts';
+import { DownloadStatementButton } from '@/app/ui/button';
 
 export default async function CustomerPage({
   params,
@@ -19,13 +20,16 @@ export default async function CustomerPage({
 
   return (
     <div className="w-full space-y-6">
-      {/* Back link */}
-      <a
-        href="/dashboard/customers"
-        className={`${lusitana.className} text-2xl inline-flex items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors`}
-      >
-        ← Customers
-      </a>
+      {/* Back link + statement download */}
+      <div className="flex items-center justify-between">
+        <a
+          href="/dashboard/customers"
+          className={`${lusitana.className} text-2xl inline-flex items-center gap-1 text-gray-400 hover:text-gray-600 transition-colors`}
+        >
+          ← Customers
+        </a>
+        <DownloadStatementButton customerId={customer.id} customerName={customer.name} />
+      </div>
 
       {/* Customer details — full width */}
       <CustomerDetail customer={customer} />
