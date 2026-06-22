@@ -26,7 +26,6 @@ export default function SupplierPayments({
       title="Payments to Supplier"
       balanceLabel="Amount we owe"
       balanceAmount={totalOwed}
-      balanceAccent="blue"
       currencySymbol="¥"
       payments={rows}
       canAdd={totalOwed > 0}

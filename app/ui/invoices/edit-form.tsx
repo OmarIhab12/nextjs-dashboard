@@ -24,10 +24,12 @@ export default function EditInvoiceForm({
   invoice,
   customers,
   products,
+  locked = false,
 }: {
   invoice: InvoiceWithItems;
   customers: Customer[];
-  products: Product[]
+  products: Product[];
+  locked?: boolean;
 }) {
   const initialState: State = { message: null, errors: {} };
   const updateInvoiceWithId = (state: State, formData: unknown) =>
@@ -54,55 +56,56 @@ export default function EditInvoiceForm({
   const total = subtotal - discountAmount;
 
   return (
-    <form action={formAction}>
-      <div className="rounded-md bg-gray-50 p-4 md:p-6">
-        
-        {/* Customer Name */}
-        <CustomerSelect customers={customers} defaultValue={invoice.customer_id} errors={state.errors?.customer_id} />
+    <form action={locked ? undefined : formAction}>
+      <fieldset disabled={locked} className="disabled:opacity-60">
+        <div className="rounded-md bg-gray-50 p-4 md:p-6">
 
-        {/* Discount */}
-        <DiscountFields
-          discountType={discountType}
-          discountValue={discountValue}
-          onTypeChange={setDiscountType}
-          onValueChange={setDiscountValue}
-          errors={{
-            discount_type:  state.errors?.discount_type,
-            discount_value: state.errors?.discount_value,
-          }}
-        />
+          {/* Customer Name */}
+          <CustomerSelect customers={customers} defaultValue={invoice.customer_id} errors={state.errors?.customer_id} />
 
-        {/* Due date */}
-        <DueDateField defaultValue={invoice.due_date} errors={state.errors?.due_date} />
+          {/* Discount */}
+          <DiscountFields
+            discountType={discountType}
+            discountValue={discountValue}
+            onTypeChange={setDiscountType}
+            onValueChange={setDiscountValue}
+            errors={{
+              discount_type:  state.errors?.discount_type,
+              discount_value: state.errors?.discount_value,
+            }}
+          />
 
-        
-        {/* Invoice Status */}
-        <InvoiceStatusField defaultValue={invoice.status} />
+          {/* Due date */}
+          <DueDateField defaultValue={invoice.due_date} errors={state.errors?.due_date} />
 
-        {/* Notes */}
-        <NotesField defaultValue={invoice.notes} />
+          {/* Invoice Status */}
+          <InvoiceStatusField defaultValue={invoice.status} />
 
-        {/* ── Line Items ── */}
-        <LineItems
-          products={products}
-          initialItems={invoice.items}
-          errors={state.errors?.items}
-          onSubtotalChange={setSubtotal}
-        />
+          {/* Notes */}
+          <NotesField defaultValue={invoice.notes} />
 
-        {/* ── Totals ── */}
-        <MoneyField
-          subtotal={subtotal}
-          discountAmount={discountAmount}
-          total={total}
-          discountType={discountType || undefined}
-          discountValue={discountValue || undefined}
-        />
+          {/* ── Line Items ── */}
+          <LineItems
+            products={products}
+            initialItems={invoice.items}
+            errors={state.errors?.items}
+            onSubtotalChange={setSubtotal}
+          />
 
-        {/* Global error */}
-        <FormErrorMessage message={state.message} />
-      
-      </div>
+          {/* ── Totals ── */}
+          <MoneyField
+            subtotal={subtotal}
+            discountAmount={discountAmount}
+            total={total}
+            discountType={discountType || undefined}
+            discountValue={discountValue || undefined}
+          />
+
+          {/* Global error */}
+          <FormErrorMessage message={state.message} />
+
+        </div>
+      </fieldset>
       <div className="mt-6 flex justify-end gap-4">
         <Link
           href="/dashboard/invoices"
@@ -110,7 +113,7 @@ export default function EditInvoiceForm({
         >
           Cancel
         </Link>
-        <Button type="submit">Edit Invoice</Button>
+        {!locked && <Button type="submit">Edit Invoice</Button>}
       </div>
     </form>
   );

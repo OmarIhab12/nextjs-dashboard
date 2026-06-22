@@ -1,4 +1,4 @@
-import { PencilIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, PlusIcon, TrashIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { deleteInvoice } from '@/app/lib/db/invoices';
 
@@ -21,6 +21,18 @@ export function UpdateInvoice({ id }: { id: string }) {
       className="btn-icon"
     >
       <PencilIcon className="w-4" />
+    </Link>
+  );
+}
+
+export function ReturnInvoice({ id }: { id: string }) {
+  return (
+    <Link
+      href={`/dashboard/invoices/${id}/return`}
+      className="btn-icon"
+      title="Create Return"
+    >
+      <ArrowUturnLeftIcon className="w-4" />
     </Link>
   );
 }

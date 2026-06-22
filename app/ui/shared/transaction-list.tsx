@@ -23,21 +23,23 @@ export function StatCard({
   label,
   value,
   accent = false,
+  danger = false,
 }: {
   label:   string;
   value:   string;
   accent?: boolean;
+  danger?: boolean;
 }) {
+  const colors = danger
+    ? { wrap: 'bg-red-50 border-red-100',     label: 'text-red-500',   value: 'text-red-700'   }
+    : accent
+    ? { wrap: 'bg-green-50 border-green-100', label: 'text-green-600', value: 'text-green-700' }
+    : { wrap: 'bg-gray-50 border-gray-100',   label: 'text-gray-400',  value: 'text-gray-800'  };
+
   return (
-    <div className={`rounded-md border px-3 py-2 ${
-      accent
-        ? 'bg-green-50 border-green-100'
-        : 'bg-gray-50 border-gray-100'
-    }`}>
-      <p className={`text-xs ${accent ? 'text-green-600' : 'text-gray-400'}`}>{label}</p>
-      <p className={`text-sm font-semibold tabular-nums ${accent ? 'text-green-700' : 'text-gray-800'}`}>
-        {value}
-      </p>
+    <div className={`rounded-md border px-3 py-2 ${colors.wrap}`}>
+      <p className={`text-xs ${colors.label}`}>{label}</p>
+      <p className={`text-sm font-semibold tabular-nums ${colors.value}`}>{value}</p>
     </div>
   );
 }
@@ -77,7 +79,7 @@ export default function TransactionList<T extends { id: string }>({
 }: {
   title:        string;
   count?:       number;
-  statCards?:   { label: string; value: string; accent?: boolean }[];
+  statCards?:   { label: string; value: string; accent?: boolean; danger?: boolean }[];
   cols:         string;
   headers:      { label: string; align?: 'left' | 'center' | 'right' }[];
   items:        T[];
@@ -98,9 +100,11 @@ export default function TransactionList<T extends { id: string }>({
 
       {/* Stat cards */}
       {statCards && statCards.length > 0 && items.length > 0 && (
-        <div className={`grid grid-cols-${statCards.length} gap-3`}>
+        <div className="flex flex-row flex-wrap gap-3">
           {statCards.map((card) => (
-            <StatCard key={card.label} label={card.label} value={card.value} accent={card.accent} />
+            <div key={card.label} className="flex-1 min-w-[120px]">
+              <StatCard label={card.label} value={card.value} accent={card.accent} danger={card.danger} />
+            </div>
           ))}
         </div>
       )}

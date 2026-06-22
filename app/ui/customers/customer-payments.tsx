@@ -26,7 +26,6 @@ export default function CustomerPayments({
       title="Payments"
       balanceLabel="Outstanding balance"
       balanceAmount={totalOwed}
-      balanceAccent="amber"
       currencySymbol="E£"
       payments={rows}
       canAdd={totalOwed > 0}

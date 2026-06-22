@@ -48,6 +48,7 @@ export type InvoicesTable = {
   total: string;
   status: InvoiceStatus;
   payment_status: PaymentStatus;
+  has_payments: boolean;
 };
 
 export type LatestInvoice = {
@@ -175,6 +176,13 @@ const FormSchema = z.object({
 
 // ── Queries ──────────────────────────────────────────────────
 
+export async function invoiceHasPayments(invoiceId: string): Promise<boolean> {
+  const [{ count }] = await sql<{ count: string }[]>`
+    SELECT COUNT(*)::text AS count FROM payments WHERE invoice_id = ${invoiceId}
+  `;
+  return Number(count) > 0;
+}
+
 export async function getAllInvoices(): Promise<Invoice[]> {
   return sql<Invoice[]>`
     SELECT * FROM invoices
@@ -292,6 +300,39 @@ export async function createInvoice(
         `.then((rows) => rows[0])
       )
     );
+
+    // 3. Drain any stored credit balance into the new installment.
+    //    The DB trigger has already created the installment by this point.
+    const [{ credit_balance }] = await tx<{ credit_balance: string }[]>`
+      SELECT credit_balance FROM customers WHERE id = ${input.customer_id} FOR UPDATE
+    `;
+    const balance = Number(credit_balance);
+
+    if (balance > 0) {
+      const [installment] = await tx<{ id: string; amount_due: string }[]>`
+        SELECT id, amount_due FROM installments WHERE invoice_id = ${invoice.id}
+      `;
+      const toApply      = Number(Math.min(balance, Number(installment.amount_due)).toFixed(2));
+      const newRemaining = Number((Number(installment.amount_due) - toApply).toFixed(2));
+
+      await tx`
+        UPDATE installments
+        SET amount_paid      = ${toApply.toFixed(2)},
+            amount_remaining = ${newRemaining.toFixed(2)},
+            status = CASE
+              WHEN ${newRemaining.toFixed(2)}::numeric = 0 THEN 'paid'::payment_status
+              ELSE 'partial'::payment_status
+            END,
+            updated_at = NOW()
+        WHERE id = ${installment.id}
+      `;
+
+      await tx`
+        UPDATE customers
+        SET credit_balance = credit_balance - ${toApply.toFixed(2)}
+        WHERE id = ${input.customer_id}
+      `;
+    }
 
     return { ...invoice, items };
   });
@@ -431,14 +472,16 @@ export async function updateInvoiceStatus(
   return invoice ?? null;
 }
 
-export async function deleteInvoice(id: string){
-  // invoice_items and installments cascade; payments are restricted
-  const result = await sql`
-    DELETE FROM invoices
-    WHERE id = ${id}
+export async function deleteInvoice(id: string) {
+  const [{ count }] = await sql<{ count: string }[]>`
+    SELECT COUNT(*) FROM payments WHERE invoice_id = ${id}
   `;
-  
-  revalidatePath('/dashboard/invoices')
+  if (Number(count) > 0) {
+    throw new Error('Cannot delete an invoice that has payments. Use the return system instead.');
+  }
+
+  await sql`DELETE FROM invoices WHERE id = ${id}`;
+  revalidatePath('/dashboard/invoices');
 }
 const ITEMS_PER_PAGE = 6;
 
@@ -488,7 +531,8 @@ export async function fetchFilteredInvoices(
       AND SUM(installments.amount_paid) < SUM(installments.amount_due)
       THEN 'partial'
     ELSE 'pending'
-  END AS payment_status
+  END AS payment_status,
+        EXISTS (SELECT 1 FROM payments WHERE invoice_id = invoices.id) AS has_payments
       FROM invoices
       JOIN customers ON invoices.customer_id = customers.id
       JOIN installments ON installments.invoice_id = invoices.id
@@ -605,7 +649,18 @@ export async function updateInvoiceAction(
   id: string,
   formData: FormData
 ): Promise<State>{
-  
+
+  // Block editing if any payments have been recorded against this invoice
+  const [paymentCheck] = await sql<{ count: string }[]>`
+    SELECT COUNT(*)::text AS count FROM payments WHERE invoice_id = ${id}
+  `;
+  if (Number(paymentCheck?.count ?? 0) > 0) {
+    return {
+      errors: {},
+      message: 'This invoice has recorded payments and cannot be edited. Use the Return option to adjust quantities.',
+    };
+  }
+
   let items: CreateInvoiceItemInput[] = [];
   try {
     items = JSON.parse(formData.get("items") as string ?? "[]");

@@ -7,6 +7,7 @@ import {
   TableActions, TableEmpty, MobileCard, MobileCardHeader, MobileCardFooter,
 } from '@/app/ui/table-components';
 import { DownloadPDFButton } from '../button';
+import { TrashIcon } from '@heroicons/react/24/outline';
 
 const COLS = 'grid-cols-[2fr_2fr_1fr_1fr_1fr_1fr_5rem]';
 
@@ -47,7 +48,16 @@ export default async function InvoicesTable({
                 <div className="flex gap-2">
                   <DownloadPDFButton invoiceId={invoice.id} customerName={invoice.name || 'unknown'} iconOnly />
                   <UpdateInvoice id={invoice.id} />
-                  <DeleteInvoice id={invoice.id} />
+                  {invoice.has_payments ? (
+                    <span
+                      className="btn-danger opacity-30 cursor-not-allowed"
+                      title="Cannot delete — invoice has payments. Use the return system."
+                    >
+                      <TrashIcon className="w-4" />
+                    </span>
+                  ) : (
+                    <DeleteInvoice id={invoice.id} />
+                  )}
                 </div>
               </MobileCardFooter>
             </MobileCard>
@@ -82,7 +92,16 @@ export default async function InvoicesTable({
                   <TableActions>
                     <DownloadPDFButton invoiceId={invoice.id} customerName={invoice.name || 'unknown'} iconOnly />
                     <UpdateInvoice id={invoice.id} />
-                    <DeleteInvoice id={invoice.id} />
+                    {invoice.has_payments ? (
+                      <span
+                        className="btn-danger opacity-30 cursor-not-allowed"
+                        title="Cannot delete — invoice has payments. Use the return system."
+                      >
+                        <TrashIcon className="w-4" />
+                      </span>
+                    ) : (
+                      <DeleteInvoice id={invoice.id} />
+                    )}
                   </TableActions>
                 </TableRow>
               ))}

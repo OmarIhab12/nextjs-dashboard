@@ -6,7 +6,7 @@
 import { useState, useTransition } from 'react';
 import { PlusIcon } from '@heroicons/react/24/outline';
 import { TableContainer, TableRows, TableEmpty } from '@/app/ui/table-components';
-import { fmt, fmtDate } from '@/app/ui/shared/transaction-list';
+import { fmt, fmtDate, StatCard } from '@/app/ui/shared/transaction-list';
 import { PayementMethodUI } from './status';
 import { PaymentMethod } from "@/app/lib/db/payments";
 
@@ -33,7 +33,6 @@ export default function PaymentPanel({
   title          = 'Payments',
   balanceLabel,
   balanceAmount,
-  balanceAccent  = 'amber',
   currencySymbol = '$',
   payments,
   canAdd,
@@ -42,18 +41,13 @@ export default function PaymentPanel({
   onAdd,
 }: {
   title?:          string;
-  // The balance banner — label and amount
   balanceLabel:    string;
   balanceAmount:   number;
-  // 'amber' for money owed to us (customers), 'blue' for money we owe (suppliers)
-  balanceAccent?:  'amber' | 'blue';
   currencySymbol?: string;
   payments:        PaymentRow[];
-  // Whether the add button should be shown at all
   canAdd:          boolean;
   addButtonLabel?: string;
   formTitle?:      string;
-  // Server action — receives FormData with amount, payment_method, reference
   onAdd:           (fd: FormData) => Promise<AddPaymentResult>;
 }) {
   const [showForm,  setShowForm]  = useState(false);
@@ -63,10 +57,6 @@ export default function PaymentPanel({
   const [error,     setError]     = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const balanceColors = {
-    amber: 'bg-amber-50 border-amber-100 text-amber-700',
-    blue:  'bg-blue-50 border-blue-100 text-blue-700',
-  };
 
   const handleSubmit = () => {
     const parsed = parseFloat(amount);
@@ -103,13 +93,20 @@ export default function PaymentPanel({
         )}
       </div>
 
-      {/* Balance banner */}
-      {balanceAmount > 0 && (
-        <div className={`rounded-md border px-3 py-2 text-xs ${balanceColors[balanceAccent]}`}>
-          {balanceLabel}:{' '}
-          <span className="font-semibold">
-            {currencySymbol}{fmt(balanceAmount)}
-          </span>
+      {/* Stat cards */}
+      {payments.length > 0 && (
+        <div className="flex flex-row flex-wrap gap-3">
+          <div className="flex-1 min-w-[120px]">
+            <StatCard
+              label="Total paid"
+              value={`${currencySymbol}${fmt(payments.reduce((s, p) => s + Number(p.amount), 0))}`}
+            />
+          </div>
+          {balanceAmount > 0 && (
+            <div className="flex-1 min-w-[120px]">
+              <StatCard label={balanceLabel} value={`${currencySymbol}${fmt(balanceAmount)}`} danger />
+            </div>
+          )}
         </div>
       )}
 

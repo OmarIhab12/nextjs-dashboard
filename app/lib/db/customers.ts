@@ -10,6 +10,7 @@ export interface Customer {
   image_url: string;
   city: string | null;
   country: string | null;
+  credit_balance: string; // NUMERIC from postgres comes as string
   created_at: Date;
   updated_at: Date;
 }
@@ -29,8 +30,10 @@ export type CustomerInvoiceSummary = {
   id: string;
   created_at: Date;
   due_date: Date | null;
-  total: string;
-  paid: number;
+  total: string;         // original invoice total
+  total_credits: number; // all return credits (credit + cash_refund) — reduces obligation
+  cash_refunded: number; // subset of total_credits that was paid back as cash
+  paid: number;          // sum of installment payments received from customer
   payment_status: 'pending' | 'partial' | 'paid' | 'overdue';
 };
  
@@ -43,11 +46,13 @@ export type CustomerPaymentSummary = {
 };
  
 export type CustomerPageData = {
-  customer:        Customer;
-  invoiceSummaries: CustomerInvoiceSummary[];
-  paymentSummaries: CustomerPaymentSummary[];
-  totalOwed:       number; // sum of all unpaid/partial invoice remainders
-  totalPaid:       number; // sum of all payments
+  customer:          Customer;
+  invoiceSummaries:  CustomerInvoiceSummary[];
+  paymentSummaries:  CustomerPaymentSummary[];
+  totalOwed:         number; // remaining installments (net of returns)
+  totalPaid:         number; // gross payments received from customer
+  totalCredits:      number; // all return credits issued
+  totalCashRefunded: number; // subset: credits settled as cash back to customer
 };
 
 // ── Queries ──────────────────────────────────────────────────
@@ -170,13 +175,15 @@ export async function getCustomerPageData(
   `;
   if (!customer) return null;
  
-  // Invoice summaries with computed payment_status
+  // Invoice summaries with computed payment_status and return credits
   const invoiceSummaries = await sql<CustomerInvoiceSummary[]>`
     SELECT
       invoices.id,
       invoices.created_at,
       invoices.due_date,
       invoices.total,
+      COALESCE(r.total_credits, 0)  AS total_credits,
+      COALESCE(r.cash_refunded, 0)  AS cash_refunded,
       (SELECT SUM(amount_paid) FROM installments WHERE invoice_id = invoices.id) AS paid,
       CASE
         WHEN SUM(installments.amount_due) = SUM(installments.amount_paid)
@@ -191,8 +198,16 @@ export async function getCustomerPageData(
       END AS payment_status
     FROM invoices
     JOIN installments ON installments.invoice_id = invoices.id
+    LEFT JOIN (
+      SELECT
+        invoice_id,
+        SUM(credit_amount) AS total_credits,
+        SUM(CASE WHEN resolution_type = 'cash_refund' THEN credit_amount ELSE 0 END) AS cash_refunded
+      FROM returns
+      GROUP BY invoice_id
+    ) r ON r.invoice_id = invoices.id
     WHERE invoices.customer_id = ${customerId}
-    GROUP BY invoices.id, invoices.created_at, invoices.due_date, invoices.total
+    GROUP BY invoices.id, invoices.created_at, invoices.due_date, invoices.total, r.total_credits, r.cash_refunded
     ORDER BY invoices.created_at DESC
   `;
  
@@ -225,8 +240,14 @@ export async function getCustomerPageData(
  
   const totalPaid = paymentSummaries
     .reduce((s, p) => s + Number(p.amount), 0);
- 
-  return { customer, invoiceSummaries, paymentSummaries, totalOwed, totalPaid };
+
+  const totalCredits = invoiceSummaries
+    .reduce((s, i) => s + Number(i.total_credits), 0);
+
+  const totalCashRefunded = invoiceSummaries
+    .reduce((s, i) => s + Number(i.cash_refunded), 0);
+
+  return { customer, invoiceSummaries, paymentSummaries, totalOwed, totalPaid, totalCredits, totalCashRefunded };
 }
  
 // ── Customer account statement ────────────────────────────────
