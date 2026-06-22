@@ -10,10 +10,14 @@ import type { ReturnState, CreateReturnItemInput } from '@/app/lib/db/returns';
 export default function ReturnForm({
   invoice,
   alreadyReturnedMap,
+  invoiceTotalDue,
+  invoiceTotalPaid,
   action,
 }: {
   invoice: InvoiceWithItems;
   alreadyReturnedMap: Record<string, number>;
+  invoiceTotalDue: number;
+  invoiceTotalPaid: number;
   action: (prevState: ReturnState, formData: FormData) => Promise<ReturnState>;
 }) {
   const initialState: ReturnState = { errors: {}, message: null };
@@ -43,6 +47,12 @@ export default function ReturnForm({
     (sum, i) => sum + i.unit_price * i.quantity,
     0
   );
+
+  // How much the customer would get back as cash if cash_refund is chosen.
+  // Only the overpaid portion (paid > new_due) qualifies as a cash refund.
+  const newDue       = invoiceTotalDue - creditAmount;
+  const cashRefundable = Math.max(0, invoiceTotalPaid - newDue);
+  const canCashRefund  = cashRefundable > 0;
 
   return (
     <form action={formAction}>
@@ -144,18 +154,29 @@ export default function ReturnForm({
                 </p>
               </div>
             </label>
-            <label className="flex flex-1 cursor-pointer items-start gap-3 rounded-md border border-gray-200 bg-white p-4 has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+            <label className={`flex flex-1 items-start gap-3 rounded-md border p-4 ${
+              canCashRefund
+                ? 'cursor-pointer border-gray-200 bg-white has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50'
+                : 'cursor-not-allowed border-gray-100 bg-gray-50 opacity-50'
+            }`}>
               <input
                 type="radio"
                 name="resolution_type"
                 value="cash_refund"
+                disabled={!canCashRefund}
                 className="mt-0.5"
               />
               <div>
                 <p className="text-sm font-medium text-gray-800">Cash refund</p>
-                <p className="text-xs text-gray-500">
-                  Return the credit amount as cash to the customer. Decreases the company wallet balance.
-                </p>
+                {canCashRefund ? (
+                  <p className="text-xs text-green-700 font-medium">
+                    {formatCurrencyEGP(cashRefundable)} available to refund
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-400">
+                    Not available — customer has not overpaid this invoice.
+                  </p>
+                )}
               </div>
             </label>
           </div>

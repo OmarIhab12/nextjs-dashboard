@@ -4,16 +4,20 @@ import { formatCurrencyEGP, formatDateToLocal } from '@/app/lib/utils';
 export default async function ReturnsList({
   invoiceId,
   invoiceTotal,
+  totalPaid,
+  totalDue,
 }: {
-  invoiceId: string;
+  invoiceId:    string;
   invoiceTotal: number;
+  totalPaid:    number;
+  totalDue:     number;
 }) {
   const returns = await getReturnsByInvoice(invoiceId);
 
   if (returns.length === 0) return null;
 
   const totalCredits = returns.reduce((sum, r) => sum + Number(r.credit_amount), 0);
-  const netTotal = invoiceTotal - totalCredits;
+  const remaining    = Number((totalDue - totalPaid).toFixed(2));
 
   return (
     <div className="mt-6 space-y-4">
@@ -83,7 +87,7 @@ export default async function ReturnsList({
       ))}
 
       {/* Net total summary */}
-      <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
+      <div className="rounded-md border border-gray-200 bg-gray-50 px-4 py-3 text-sm space-y-1.5">
         <div className="flex justify-between text-gray-500">
           <span>Original invoice total</span>
           <span className="tabular-nums">{formatCurrencyEGP(invoiceTotal)}</span>
@@ -92,9 +96,17 @@ export default async function ReturnsList({
           <span>Total credits from returns</span>
           <span className="tabular-nums">-{formatCurrencyEGP(totalCredits)}</span>
         </div>
-        <div className="mt-2 flex justify-between border-t border-gray-200 pt-2 font-semibold text-gray-800">
-          <span>Net amount owed</span>
-          <span className="tabular-nums">{formatCurrencyEGP(netTotal)}</span>
+        <div className="flex justify-between border-t border-gray-200 pt-1.5 text-gray-700">
+          <span>Net obligation</span>
+          <span className="tabular-nums font-medium">{formatCurrencyEGP(totalDue)}</span>
+        </div>
+        <div className="flex justify-between text-green-700">
+          <span>Amount paid</span>
+          <span className="tabular-nums font-medium">{formatCurrencyEGP(totalPaid)}</span>
+        </div>
+        <div className={`flex justify-between border-t border-gray-200 pt-1.5 font-semibold ${remaining > 0 ? 'text-amber-700' : 'text-green-700'}`}>
+          <span>{remaining > 0 ? 'Still owed' : 'Fully settled'}</span>
+          <span className="tabular-nums">{formatCurrencyEGP(remaining)}</span>
         </div>
       </div>
     </div>

@@ -46,7 +46,7 @@ export default function CustomerInvoices({
         const cashRefunded = Number(inv.cash_refunded);
         const grossPaid    = Number(inv.paid);
         const netCostRow   = original - returned;
-        const netPaidRow   = grossPaid - returned;
+        const netPaidRow   = grossPaid;
 
         return (
           <>

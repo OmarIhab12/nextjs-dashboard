@@ -115,14 +115,18 @@ export async function getAlreadyReturnedQuantities(
 // ── Installment credit helper ─────────────────────────────────
 
 /**
- * Reduces installments for an invoice by the credit amount.
- * Starts from the latest installment to reduce future obligations first.
- * Respects: amount_due cannot go below amount_paid.
+ * Applies a return credit to the invoice's installments (latest first).
  *
- * For 'credit' resolution only: any excess credit that cannot be applied to
- * the return invoice is rolled forward as a payment credit on the oldest
- * unpaid installments across the customer's other invoices. This prevents
- * the awkward state of one invoice being overpaid while another is underpaid.
+ * For every installment processed:
+ *   - amount_due  decreases by the return reduction
+ *   - amount_paid is capped to the new amount_due (excess is collected)
+ *   - amount_remaining = new_due - new_paid
+ *
+ * What happens with the excess (amount_paid that was capped):
+ *   'credit'      → rolled forward to other unpaid invoices, remainder → credit_balance
+ *   'cash_refund' → returned to the customer as cash (caller inserts wallet tx)
+ *
+ * Returns the actual cash amount to refund for 'cash_refund' (0 for 'credit').
  */
 async function applyReturnCreditToInstallments(
   invoiceId: string,
@@ -130,108 +134,116 @@ async function applyReturnCreditToInstallments(
   creditAmount: number,
   resolutionType: ReturnResolution,
   tx: postgres.TransactionSql
-): Promise<void> {
-  // ── Step 1: reduce current invoice's installments (latest first) ──
+): Promise<{ cashToRefund: number }> {
   const installments = await tx<
-    { id: string; amount_due: string; amount_paid: string; amount_remaining: string }[]
+    { id: string; amount_due: string; amount_paid: string }[]
   >`
-    SELECT id, amount_due, amount_paid, amount_remaining
+    SELECT id, amount_due, amount_paid
     FROM installments
     WHERE invoice_id = ${invoiceId}
     ORDER BY installment_number DESC
   `;
 
-  let remaining = creditAmount;
+  let remaining    = creditAmount;
+  let totalExcess  = 0; // amount_paid that exceeded the new (lower) amount_due
 
   for (const inst of installments) {
     if (remaining <= 0) break;
 
-    const currentDue   = Number(inst.amount_due);
-    const currentPaid  = Number(inst.amount_paid);
-    const maxReduction = Number((currentDue - currentPaid).toFixed(2));
+    const currentDue  = Number(inst.amount_due);
+    const currentPaid = Number(inst.amount_paid);
 
-    if (maxReduction <= 0) continue;
+    const reduction = Math.min(remaining, currentDue);
+    const newDue    = Number((currentDue - reduction).toFixed(2));
 
-    const reduction    = Math.min(remaining, maxReduction);
-    const newDue       = Number((currentDue - reduction).toFixed(2));
-    const newRemaining = Number((newDue - currentPaid).toFixed(2));
+    // Cap paid to new obligation — any overpaid portion becomes excess
+    const newPaid   = Number(Math.min(currentPaid, newDue).toFixed(2));
+    totalExcess    += Number((currentPaid - newPaid).toFixed(2));
+
+    const newRemaining = Number((newDue - newPaid).toFixed(2));
+    const newStatus    =
+      newRemaining === 0 ? 'paid'    :
+      newPaid      >  0 ? 'partial'  :
+                          'pending';
 
     await tx`
       UPDATE installments
       SET
         amount_due       = ${newDue.toFixed(2)},
+        amount_paid      = ${newPaid.toFixed(2)},
         amount_remaining = ${newRemaining.toFixed(2)},
-        status = CASE
-          WHEN ${newRemaining.toFixed(2)}::numeric = 0
-            THEN 'paid'::payment_status
-          WHEN ${currentPaid.toFixed(2)}::numeric > 0
-            THEN 'partial'::payment_status
-          ELSE status
-        END,
-        updated_at = NOW()
+        status           = ${newStatus}::payment_status,
+        updated_at       = NOW()
       WHERE id = ${inst.id}
     `;
 
     remaining = Number((remaining - reduction).toFixed(2));
   }
 
-  // ── Step 2: roll excess to other invoices (credit resolution only) ──
-  // For cash_refund the excess is already settled by returning cash to
-  // the customer, so there is nothing left to carry forward.
-  if (resolutionType !== 'credit' || remaining <= 0) return;
-
-  const otherInstallments = await tx<
-    { id: string; amount_paid: string; amount_remaining: string }[]
-  >`
-    SELECT i.id, i.amount_paid, i.amount_remaining
-    FROM installments i
-    JOIN invoices inv ON inv.id = i.invoice_id
-    WHERE inv.customer_id  = ${customerId}
-      AND i.invoice_id    != ${invoiceId}
-      AND i.status        != 'paid'
-      AND i.amount_remaining > 0
-    ORDER BY i.due_date ASC NULLS LAST, i.created_at ASC
-  `;
-
-  for (const inst of otherInstallments) {
-    if (remaining <= 0) break;
-
-    const instRemaining = Number(inst.amount_remaining);
-    const allocated     = Math.min(remaining, instRemaining);
-    const newPaid       = Number((Number(inst.amount_paid) + allocated).toFixed(2));
-    const newRem        = Number((instRemaining - allocated).toFixed(2));
-
-    await tx`
-      UPDATE installments
-      SET
-        amount_paid      = ${newPaid.toFixed(2)},
-        amount_remaining = ${newRem.toFixed(2)},
-        status = CASE
-          WHEN ${newRem.toFixed(2)}::numeric = 0 THEN 'paid'::payment_status
-          ELSE 'partial'::payment_status
-        END,
-        updated_at = NOW()
-      WHERE id = ${inst.id}
-    `;
-
-    remaining = Number((remaining - allocated).toFixed(2));
+  // For cash_refund: excess goes back to the customer as cash.
+  // The caller inserts the wallet transaction so only the real overpaid
+  // amount (not the full return value) is ever refunded.
+  if (resolutionType === 'cash_refund') {
+    return { cashToRefund: Number(totalExcess.toFixed(2)) };
   }
 
-  // Any credit still unallocated (no more unpaid invoices) is stored on
-  // the customer so it auto-drains when their next invoice is created.
-  if (remaining > 0) {
-    await tx`
-      UPDATE customers
-      SET credit_balance = credit_balance + ${remaining.toFixed(2)}
-      WHERE id = ${customerId}
+  // For credit: roll totalExcess + any unabsorbed credit to other invoices,
+  // then store the remainder in the customer's credit_balance.
+  let toRoll = Number((totalExcess + remaining).toFixed(2));
+
+  if (toRoll > 0) {
+    const otherInstallments = await tx<
+      { id: string; amount_paid: string; amount_remaining: string }[]
+    >`
+      SELECT i.id, i.amount_paid, i.amount_remaining
+      FROM installments i
+      JOIN invoices inv ON inv.id = i.invoice_id
+      WHERE inv.customer_id  = ${customerId}
+        AND i.invoice_id    != ${invoiceId}
+        AND i.status        != 'paid'
+        AND i.amount_remaining > 0
+      ORDER BY i.due_date ASC NULLS LAST, i.created_at ASC
     `;
+
+    for (const inst of otherInstallments) {
+      if (toRoll <= 0) break;
+
+      const instRemaining = Number(inst.amount_remaining);
+      const allocated     = Math.min(toRoll, instRemaining);
+      const newPaid       = Number((Number(inst.amount_paid) + allocated).toFixed(2));
+      const newRem        = Number((instRemaining - allocated).toFixed(2));
+
+      await tx`
+        UPDATE installments
+        SET
+          amount_paid      = ${newPaid.toFixed(2)},
+          amount_remaining = ${newRem.toFixed(2)},
+          status = CASE
+            WHEN ${newRem.toFixed(2)}::numeric = 0 THEN 'paid'::payment_status
+            ELSE 'partial'::payment_status
+          END,
+          updated_at = NOW()
+        WHERE id = ${inst.id}
+      `;
+
+      toRoll = Number((toRoll - allocated).toFixed(2));
+    }
+
+    if (toRoll > 0) {
+      await tx`
+        UPDATE customers
+        SET credit_balance = credit_balance + ${toRoll.toFixed(2)}
+        WHERE id = ${customerId}
+      `;
+    }
   }
+
+  return { cashToRefund: 0 };
 }
 
 // ── Mutations ─────────────────────────────────────────────────
 
 export async function createReturn(input: CreateReturnInput): Promise<ReturnWithItems> {
-  // Compute credit amount from items
   const creditAmount = input.items.reduce(
     (sum, item) => sum + item.unit_price * item.quantity,
     0
@@ -242,7 +254,14 @@ export async function createReturn(input: CreateReturnInput): Promise<ReturnWith
   }
 
   return await sql.begin(async (tx) => {
-    // Insert the return record (wallet trigger fires here for cash_refund)
+    // Resolve customer_id first (needed for installment logic)
+    const [{ customer_id }] = await tx<{ customer_id: string }[]>`
+      SELECT customer_id FROM invoices WHERE id = ${input.invoice_id}
+    `;
+
+    // Insert the return record.
+    // Note: the wallet trigger (fn_return_sync_wallet) has been neutralized —
+    // the actual cash refund amount is computed below and inserted manually.
     const [returnRecord] = await tx<Return[]>`
       INSERT INTO returns (invoice_id, created_by, credit_amount, resolution_type, reason, notes)
       VALUES (
@@ -278,7 +297,6 @@ export async function createReturn(input: CreateReturnInput): Promise<ReturnWith
       `;
       returnItems.push(returnItem);
 
-      // Restore stock for the returned product
       if (item.product_id) {
         await tx`
           UPDATE products
@@ -289,13 +307,25 @@ export async function createReturn(input: CreateReturnInput): Promise<ReturnWith
       }
     }
 
-    // Resolve customer_id needed for cross-invoice credit rollover
-    const [{ customer_id }] = await tx<{ customer_id: string }[]>`
-      SELECT customer_id FROM invoices WHERE id = ${input.invoice_id}
-    `;
+    // Update installments: amount_due drops by return value, amount_paid is
+    // capped to new_due (excess is the actual overpaid cash or credit to roll).
+    const { cashToRefund } = await applyReturnCreditToInstallments(
+      input.invoice_id, customer_id, creditAmount, input.resolution_type, tx
+    );
 
-    // Apply credit to installments (both resolution types reduce what customer owes)
-    await applyReturnCreditToInstallments(input.invoice_id, customer_id, creditAmount, input.resolution_type, tx);
+    // For cash_refund: only refund what was genuinely overpaid (not the full
+    // return value) — this is the amount amount_paid was reduced by.
+    if (input.resolution_type === 'cash_refund' && cashToRefund > 0) {
+      await tx`
+        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id)
+        VALUES ('EGP', ${cashToRefund.toFixed(2)}, 'out', 'customer_refund', ${returnRecord.id})
+      `;
+      await tx`
+        UPDATE company_wallet
+        SET egp_balance = egp_balance - ${cashToRefund.toFixed(2)},
+            updated_at  = NOW()
+      `;
+    }
 
     return { ...returnRecord, items: returnItems };
   });
@@ -313,7 +343,7 @@ const ReturnSchema = z.object({
 
 export async function createReturnAction(
   invoiceId: string,
-  prevState: ReturnState,
+  _prevState: ReturnState,
   formData: FormData
 ): Promise<ReturnState> {
   const session = await auth();
@@ -326,13 +356,9 @@ export async function createReturnAction(
   try {
     items = JSON.parse(formData.get('items') as string ?? '[]');
   } catch {
-    return {
-      errors: { items: ['Invalid return items data.'] },
-      message: 'Failed to create return.',
-    };
+    return { errors: { items: ['Invalid return items data.'] }, message: 'Failed to create return.' };
   }
 
-  // Filter out items with quantity 0
   items = items.filter((i) => i.quantity > 0);
 
   if (items.length === 0) {
@@ -342,32 +368,6 @@ export async function createReturnAction(
     };
   }
 
-  // Validate quantities against original invoice
-  const invoice = await getInvoiceById(invoiceId);
-  if (!invoice) {
-    return { errors: { general: ['Invoice not found.'] }, message: null };
-  }
-
-  const alreadyReturned = await getAlreadyReturnedQuantities(invoiceId);
-  const originalMap = new Map(invoice.items.map((i) => [i.id, Number(i.quantity)]));
-
-  for (const item of items) {
-    const originalQty = originalMap.get(item.invoice_item_id) ?? 0;
-    const prevReturned = alreadyReturned.get(item.invoice_item_id) ?? 0;
-    const maxReturnable = originalQty - prevReturned;
-
-    if (item.quantity > maxReturnable) {
-      return {
-        errors: {
-          items: [
-            `"${item.product_name}": cannot return ${item.quantity} — only ${maxReturnable} returnable (${originalQty} original, ${prevReturned} already returned).`,
-          ],
-        },
-        message: 'Validation failed.',
-      };
-    }
-  }
-
   const validated = ReturnSchema.safeParse({
     resolution_type: formData.get('resolution_type'),
     reason: formData.get('reason') ?? undefined,
@@ -375,19 +375,69 @@ export async function createReturnAction(
   });
 
   if (!validated.success) {
-    return {
-      errors: validated.error.flatten().fieldErrors,
-      message: 'Validation failed.',
-    };
+    return { errors: validated.error.flatten().fieldErrors, message: 'Validation failed.' };
+  }
+
+  // Validate return quantities against original invoice
+  const [invoice, alreadyReturned] = await Promise.all([
+    getInvoiceById(invoiceId),
+    getAlreadyReturnedQuantities(invoiceId),
+  ]);
+  if (!invoice) {
+    return { errors: { general: ['Invoice not found.'] }, message: null };
+  }
+
+  const originalMap = new Map(invoice.items.map((i) => [i.id, Number(i.quantity)]));
+
+  for (const item of items) {
+    const originalQty   = originalMap.get(item.invoice_item_id) ?? 0;
+    const prevReturned  = alreadyReturned.get(item.invoice_item_id) ?? 0;
+    const maxReturnable = originalQty - prevReturned;
+
+    if (item.quantity > maxReturnable) {
+      return {
+        errors: {
+          items: [`"${item.product_name}": cannot return ${item.quantity} — only ${maxReturnable} returnable.`],
+        },
+        message: 'Validation failed.',
+      };
+    }
+  }
+
+  // For cash_refund: verify the customer has actually overpaid after this return.
+  // Cash refund = amount_paid capped to new_due. If nothing was overpaid, reject.
+  if (validated.data.resolution_type === 'cash_refund') {
+    const creditAmount = items.reduce((s, i) => s + i.unit_price * i.quantity, 0);
+
+    const [totals] = await sql<{ total_due: string; total_paid: string }[]>`
+      SELECT
+        COALESCE(SUM(amount_due),  0)::text AS total_due,
+        COALESCE(SUM(amount_paid), 0)::text AS total_paid
+      FROM installments
+      WHERE invoice_id = ${invoiceId}
+    `;
+    const newDue   = Number(totals.total_due) - creditAmount;
+    const overpaid = Math.max(0, Number(totals.total_paid) - newDue);
+
+    if (overpaid === 0) {
+      return {
+        errors: {
+          resolution_type: [
+            'Cash refund is not available — the customer has not overpaid this invoice. Use "Apply as credit" to reduce the outstanding balance instead.',
+          ],
+        },
+        message: 'Validation failed.',
+      };
+    }
   }
 
   await createReturn({
-    invoice_id: invoiceId,
-    created_by: session.user.id,
+    invoice_id:      invoiceId,
+    created_by:      session.user.id,
     resolution_type: validated.data.resolution_type,
     items,
     reason: validated.data.reason,
-    notes: validated.data.notes,
+    notes:  validated.data.notes,
   });
 
   revalidatePath(`/dashboard/invoices/${invoiceId}/edit`);

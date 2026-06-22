@@ -178,7 +178,9 @@ const FormSchema = z.object({
 
 export async function invoiceHasPayments(invoiceId: string): Promise<boolean> {
   const [{ count }] = await sql<{ count: string }[]>`
-    SELECT COUNT(*)::text AS count FROM payments WHERE invoice_id = ${invoiceId}
+    SELECT COUNT(*)::text AS count
+    FROM installments
+    WHERE invoice_id = ${invoiceId} AND amount_paid > 0
   `;
   return Number(count) > 0;
 }
@@ -206,6 +208,19 @@ export async function getInvoiceById(
   `;
 
   return { ...invoice, items };
+}
+
+export async function getInvoiceInstallmentTotals(
+  invoiceId: string
+): Promise<{ totalDue: number; totalPaid: number }> {
+  const [row] = await sql<{ total_due: string; total_paid: string }[]>`
+    SELECT
+      COALESCE(SUM(amount_due),  0)::text AS total_due,
+      COALESCE(SUM(amount_paid), 0)::text AS total_paid
+    FROM installments
+    WHERE invoice_id = ${invoiceId}
+  `;
+  return { totalDue: Number(row.total_due), totalPaid: Number(row.total_paid) };
 }
 
 export async function getInvoicesByCustomer(
@@ -429,6 +444,15 @@ export async function updateInvoiceItems(
         WHERE invoice_id = ${invoiceId}
           AND product_id = ${item.product_id}
       `;
+
+      if (qtyDiff !== 0 && item.product_id) {
+        await tx`
+          UPDATE products
+          SET stock_quantity = stock_quantity - ${qtyDiff},
+              updated_at = NOW()
+          WHERE id = ${item.product_id}
+        `;
+      }
     })
   );
 
@@ -474,7 +498,10 @@ export async function updateInvoiceStatus(
 
 export async function deleteInvoice(id: string) {
   const [{ count }] = await sql<{ count: string }[]>`
-    SELECT COUNT(*) FROM payments WHERE invoice_id = ${id}
+    SELECT COUNT(*)::text AS count
+    FROM payment_installments pi
+    JOIN installments inst ON inst.id = pi.installment_id
+    WHERE inst.invoice_id = ${id}
   `;
   if (Number(count) > 0) {
     throw new Error('Cannot delete an invoice that has payments. Use the return system instead.');
@@ -532,7 +559,7 @@ export async function fetchFilteredInvoices(
       THEN 'partial'
     ELSE 'pending'
   END AS payment_status,
-        EXISTS (SELECT 1 FROM payments WHERE invoice_id = invoices.id) AS has_payments
+        (SUM(installments.amount_paid) > 0) AS has_payments
       FROM invoices
       JOIN customers ON invoices.customer_id = customers.id
       JOIN installments ON installments.invoice_id = invoices.id
@@ -566,7 +593,7 @@ export async function fetchFilteredInvoices(
 
 const CreateInvoice = FormSchema.omit({ id: true});
 
-export async function createInvoiceAction(prevState: State, formData: FormData): Promise<State>{
+export async function createInvoiceAction(_prevState: State, formData: FormData): Promise<State>{
   
 
   let items: CreateInvoiceItemInput[] = [];
@@ -645,14 +672,17 @@ export async function createInvoiceAction(prevState: State, formData: FormData):
 }
 
 export async function updateInvoiceAction(
-  prevState: State,
+  _prevState: State,
   id: string,
   formData: FormData
 ): Promise<State>{
 
-  // Block editing if any payments have been recorded against this invoice
+  // Block editing if any payments have been allocated to this invoice's installments
   const [paymentCheck] = await sql<{ count: string }[]>`
-    SELECT COUNT(*)::text AS count FROM payments WHERE invoice_id = ${id}
+    SELECT COUNT(*)::text AS count
+    FROM payment_installments pi
+    JOIN installments inst ON inst.id = pi.installment_id
+    WHERE inst.invoice_id = ${id}
   `;
   if (Number(paymentCheck?.count ?? 0) > 0) {
     return {
