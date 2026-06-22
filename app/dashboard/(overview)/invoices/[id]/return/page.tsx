@@ -2,6 +2,7 @@ import ReturnForm from '@/app/ui/invoices/return-form';
 import Breadcrumbs from '@/app/ui/invoices/breadcrumbs';
 import { getInvoiceById, getInvoiceInstallmentTotals } from '@/app/lib/db/invoices';
 import { createReturnAction, getAlreadyReturnedQuantities } from '@/app/lib/db/returns';
+import { getWalletAccounts } from '@/app/lib/db/wallet-accounts';
 import { notFound } from 'next/navigation';
 import InvoicePaymentSummary from '@/app/ui/invoices/invoice-payment-summary';
 
@@ -10,13 +11,16 @@ export const dynamic = 'force-dynamic';
 export default async function Page(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params;
 
-  const [invoice, alreadyReturnedMap, installmentTotals] = await Promise.all([
+  const [invoice, alreadyReturnedMap, installmentTotals, allAccounts] = await Promise.all([
     getInvoiceById(id),
     getAlreadyReturnedQuantities(id).then((map) => Object.fromEntries(map)),
     getInvoiceInstallmentTotals(id),
+    getWalletAccounts(),
   ]);
 
   if (!invoice) notFound();
+
+  const egpAccounts = allAccounts.filter((a) => a.currency === 'EGP');
 
   const action = createReturnAction.bind(null, id);
 
@@ -41,6 +45,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
         alreadyReturnedMap={alreadyReturnedMap}
         invoiceTotalDue={installmentTotals.totalDue}
         invoiceTotalPaid={installmentTotals.totalPaid}
+        egpAccounts={egpAccounts}
         action={action}
       />
     </main>

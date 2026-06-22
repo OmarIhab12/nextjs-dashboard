@@ -46,18 +46,20 @@ export interface CreateReturnItemInput {
 }
 
 export interface CreateReturnInput {
-  invoice_id: string;
-  created_by: string;
-  resolution_type: ReturnResolution;
-  items: CreateReturnItemInput[];
-  reason?: string;
-  notes?: string;
+  invoice_id:       string;
+  created_by:       string;
+  resolution_type:  ReturnResolution;
+  items:            CreateReturnItemInput[];
+  account_id?:      string; // required when resolution_type === 'cash_refund'
+  reason?:          string;
+  notes?:           string;
 }
 
 export type ReturnState = {
   errors: {
     items?: string[];
     resolution_type?: string[];
+    account_id?: string[];
     reason?: string[];
     general?: string[];
   };
@@ -316,15 +318,25 @@ export async function createReturn(input: CreateReturnInput): Promise<ReturnWith
     // For cash_refund: only refund what was genuinely overpaid (not the full
     // return value) — this is the amount amount_paid was reduced by.
     if (input.resolution_type === 'cash_refund' && cashToRefund > 0) {
+      const accountId = input.account_id ?? null;
+
       await tx`
-        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id)
-        VALUES ('EGP', ${cashToRefund.toFixed(2)}, 'out', 'customer_refund', ${returnRecord.id})
+        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, account_id)
+        VALUES ('EGP', ${cashToRefund.toFixed(2)}, 'out', 'customer_refund', ${returnRecord.id}, ${accountId})
       `;
       await tx`
         UPDATE company_wallet
         SET egp_balance = egp_balance - ${cashToRefund.toFixed(2)},
             updated_at  = NOW()
       `;
+      if (accountId) {
+        await tx`
+          UPDATE wallet_accounts
+          SET balance    = balance - ${cashToRefund.toFixed(2)},
+              updated_at = NOW()
+          WHERE id = ${accountId}
+        `;
+      }
     }
 
     return { ...returnRecord, items: returnItems };
@@ -431,10 +443,20 @@ export async function createReturnAction(
     }
   }
 
+  const accountId = formData.get('account_id') as string | null;
+
+  if (validated.data.resolution_type === 'cash_refund' && !accountId) {
+    return {
+      errors: { account_id: ['Please select which account the cash will be paid from.'] },
+      message: 'Validation failed.',
+    };
+  }
+
   await createReturn({
     invoice_id:      invoiceId,
     created_by:      session.user.id,
     resolution_type: validated.data.resolution_type,
+    account_id:      accountId ?? undefined,
     items,
     reason: validated.data.reason,
     notes:  validated.data.notes,

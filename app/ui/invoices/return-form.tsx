@@ -6,18 +6,21 @@ import { Button } from '@/app/ui/button';
 import { formatCurrencyEGP } from '@/app/lib/utils';
 import type { InvoiceWithItems } from '@/app/lib/db/invoices';
 import type { ReturnState, CreateReturnItemInput } from '@/app/lib/db/returns';
+import type { WalletAccount } from '@/app/lib/db/wallet-accounts';
 
 export default function ReturnForm({
   invoice,
   alreadyReturnedMap,
   invoiceTotalDue,
   invoiceTotalPaid,
+  egpAccounts,
   action,
 }: {
   invoice: InvoiceWithItems;
   alreadyReturnedMap: Record<string, number>;
   invoiceTotalDue: number;
   invoiceTotalPaid: number;
+  egpAccounts: WalletAccount[];
   action: (prevState: ReturnState, formData: FormData) => Promise<ReturnState>;
 }) {
   const initialState: ReturnState = { errors: {}, message: null };
@@ -27,6 +30,8 @@ export default function ReturnForm({
   const [returnQtys, setReturnQtys] = useState<Record<string, number>>(
     Object.fromEntries(invoice.items.map((i) => [i.id, 0]))
   );
+
+  const [resolutionType, setResolutionType] = useState<'credit' | 'cash_refund'>('credit');
 
   const updateQty = (itemId: string, value: number) => {
     setReturnQtys((prev) => ({ ...prev, [itemId]: value }));
@@ -146,6 +151,7 @@ export default function ReturnForm({
                 value="credit"
                 defaultChecked
                 className="mt-0.5"
+                onChange={() => setResolutionType('credit')}
               />
               <div>
                 <p className="text-sm font-medium text-gray-800">Apply as credit</p>
@@ -165,6 +171,7 @@ export default function ReturnForm({
                 value="cash_refund"
                 disabled={!canCashRefund}
                 className="mt-0.5"
+                onChange={() => setResolutionType('cash_refund')}
               />
               <div>
                 <p className="text-sm font-medium text-gray-800">Cash refund</p>
@@ -184,6 +191,31 @@ export default function ReturnForm({
             <p key={err} className="mt-2 text-sm text-red-500">{err}</p>
           ))}
         </div>
+
+        {/* ── Account selector (cash refund only) ── */}
+        {resolutionType === 'cash_refund' && canCashRefund && (
+          <div>
+            <label htmlFor="account_id" className="mb-2 block text-sm font-medium text-gray-700">
+              Pay from account <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="account_id"
+              name="account_id"
+              defaultValue=""
+              className="block w-full rounded-md border border-gray-200 px-3 py-2 text-sm outline-2"
+            >
+              <option value="" disabled>Select an EGP account…</option>
+              {egpAccounts.map((acc) => (
+                <option key={acc.id} value={acc.id}>
+                  {acc.method} — balance: {formatCurrencyEGP(Number(acc.balance))}
+                </option>
+              ))}
+            </select>
+            {state.errors?.account_id?.map((err) => (
+              <p key={err} className="mt-2 text-sm text-red-500">{err}</p>
+            ))}
+          </div>
+        )}
 
         {/* ── Reason ── */}
         <div>
