@@ -37,14 +37,21 @@ export default function ReturnForm({
     setReturnQtys((prev) => ({ ...prev, [itemId]: value }));
   };
 
-  // Build the items payload for submission
+  // Invoice-level discount ratio: what fraction of the list price the customer actually paid.
+  // e.g. 1800 total / 2000 subtotal = 0.9 → every item is effectively 10% cheaper.
+  const subtotal = Number(invoice.subtotal);
+  const invoiceTotal = Number(invoice.total);
+  const discountRatio = subtotal > 0 ? invoiceTotal / subtotal : 1;
+  const hasDiscount = discountRatio < 0.9999; // guard against floating point noise
+
+  // Build the items payload using the effective (post-discount) unit price
   const returnItems: CreateReturnItemInput[] = invoice.items
     .filter((i) => (returnQtys[i.id] ?? 0) > 0)
     .map((i) => ({
       invoice_item_id: i.id,
       product_id: i.product_id ?? null,
       product_name: i.product_name,
-      unit_price: Number(i.unit_price),
+      unit_price: parseFloat((Number(i.unit_price) * discountRatio).toFixed(2)),
       quantity: returnQtys[i.id],
     }));
 
@@ -55,7 +62,7 @@ export default function ReturnForm({
 
   // How much the customer would get back as cash if cash_refund is chosen.
   // Only the overpaid portion (paid > new_due) qualifies as a cash refund.
-  const newDue       = invoiceTotalDue - creditAmount;
+  const newDue         = invoiceTotalDue - creditAmount;
   const cashRefundable = Math.max(0, invoiceTotalPaid - newDue);
   const canCashRefund  = cashRefundable > 0;
 
@@ -69,12 +76,17 @@ export default function ReturnForm({
         {/* ── Item selection ── */}
         <div>
           <h2 className="mb-3 text-sm font-semibold text-gray-700">Select items to return</h2>
+          {hasDiscount && (
+            <p className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              A discount was applied to this invoice. Credit amounts reflect the discounted price the customer actually paid.
+            </p>
+          )}
           <div className="overflow-x-auto rounded-md border border-gray-200 bg-white">
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                 <tr>
                   <th className="px-4 py-3 text-left">Product</th>
-                  <th className="px-4 py-3 text-right">Unit Price</th>
+                  <th className="px-4 py-3 text-right">{hasDiscount ? 'Price (after discount)' : 'Unit Price'}</th>
                   <th className="px-4 py-3 text-right">Invoiced</th>
                   <th className="px-4 py-3 text-right">Already Returned</th>
                   <th className="px-4 py-3 text-right">Returnable</th>
@@ -87,13 +99,19 @@ export default function ReturnForm({
                   const prevReturned = alreadyReturnedMap[item.id] ?? 0;
                   const maxReturnable = item.quantity - prevReturned;
                   const qty = returnQtys[item.id] ?? 0;
-                  const lineCredit = Number(item.unit_price) * qty;
+                  const effectiveUnitPrice = parseFloat((Number(item.unit_price) * discountRatio).toFixed(2));
+                  const lineCredit = effectiveUnitPrice * qty;
 
                   return (
                     <tr key={item.id} className={maxReturnable === 0 ? 'opacity-40' : ''}>
                       <td className="px-4 py-3 font-medium text-gray-800">{item.product_name}</td>
                       <td className="px-4 py-3 text-right tabular-nums">
-                        {formatCurrencyEGP(Number(item.unit_price))}
+                        <span>{formatCurrencyEGP(effectiveUnitPrice)}</span>
+                        {hasDiscount && (
+                          <span className="block text-xs text-gray-400 line-through">
+                            {formatCurrencyEGP(Number(item.unit_price))}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right tabular-nums">{item.quantity}</td>
                       <td className="px-4 py-3 text-right tabular-nums text-orange-600">
