@@ -181,6 +181,7 @@ function ExpenseTable({
       amount: '0', currency: 'EGP', description: null,
       expense_date: new Date().toISOString(),
       next_due_date: null, is_active: true, created_at: '',
+      created_by: '', edited_by: null,
     };
     setRows((prev) => [blank, ...prev]);
     setEditStates((prev) => ({ ...prev, [key]: emptyEditState() }));
