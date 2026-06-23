@@ -38,30 +38,8 @@ async function migrate() {
 
   console.log("  ✓ returns and return_items tables created");
 
-  // ── Wallet trigger: deduct EGP on cash_refund return ─────────
-  await sql`
-    CREATE OR REPLACE FUNCTION fn_return_sync_wallet()
-    RETURNS TRIGGER LANGUAGE plpgsql AS $$
-    BEGIN
-      IF NEW.resolution_type = 'cash_refund' THEN
-        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id)
-        VALUES ('EGP', NEW.credit_amount, 'out', 'customer_refund', NEW.id);
-        UPDATE company_wallet
-        SET egp_balance = egp_balance - NEW.credit_amount,
-            updated_at  = NOW();
-      END IF;
-      RETURN NULL;
-    END;
-    $$
-  `;
-  await sql`DROP TRIGGER IF EXISTS trg_return_sync_wallet ON returns`;
-  await sql`
-    CREATE TRIGGER trg_return_sync_wallet
-      AFTER INSERT ON returns
-      FOR EACH ROW EXECUTE FUNCTION fn_return_sync_wallet()
-  `;
-
-  console.log("  ✓ Wallet trigger for returns created");
+  // No wallet trigger on returns — wallet entries are written in application
+  // code (createReturn) so only the genuinely overpaid amount is refunded.
 
   // ── Customer credit balance (unallocated return credits) ─────
   // Tracks excess credit that couldn't be applied to any existing installment.

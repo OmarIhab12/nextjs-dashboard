@@ -176,30 +176,6 @@ async function migrate() {
   `;
   console.log('  ✓ fn_expense_sync_wallet updated');
 
-  // fn_return_sync_wallet: pass NEW.created_by (returns already has created_by)
-  await sql`
-    CREATE OR REPLACE FUNCTION fn_return_sync_wallet()
-    RETURNS TRIGGER LANGUAGE plpgsql AS $$
-    BEGIN
-      IF NEW.resolution_type = 'cash_refund' THEN
-        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, created_by)
-        VALUES ('EGP', NEW.credit_amount, 'out', 'customer_refund', NEW.id, NEW.created_by);
-        UPDATE company_wallet
-        SET egp_balance = egp_balance - NEW.credit_amount,
-            updated_at  = NOW();
-      END IF;
-      RETURN NULL;
-    END;
-    $$
-  `;
-  await sql`DROP TRIGGER IF EXISTS trg_return_sync_wallet ON returns`;
-  await sql`
-    CREATE TRIGGER trg_return_sync_wallet
-      AFTER INSERT ON returns
-      FOR EACH ROW EXECUTE FUNCTION fn_return_sync_wallet()
-  `;
-  console.log('  ✓ fn_return_sync_wallet updated');
-
   // fn_conversion_sync_wallet: pass NEW.created_by for both wallet_transaction rows
   await sql`
     CREATE OR REPLACE FUNCTION fn_conversion_sync_wallet()
