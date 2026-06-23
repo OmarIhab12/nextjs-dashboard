@@ -142,7 +142,7 @@ export async function fetchFilteredProducts(
       name        ILIKE ${`%${query}%`} OR
       sku         ILIKE ${`%${query}%`} OR
       description ILIKE ${`%${query}%`}
-    ORDER BY created_at DESC
+    ORDER BY name ASC
     LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
   `;
 }
