@@ -17,10 +17,11 @@ export type WalletTransaction = {
   currency:     "EGP" | "USD" | "RMB";
   amount:       string;
   direction:    "in" | "out";
-  reason:       "conversion" | "expense" | "order_payment" | "invoice_payment";
+  reason:       "conversion" | "expense" | "order_payment" | "invoice_payment" | "customer_refund";
   reference_id: string;
   corrects_id:  string | null;
   account_id:   string | null;
+  created_by:   string;
   created_at:   string;
 };
 
@@ -148,6 +149,32 @@ export async function recomputeBalancesFromLedger(): Promise<{ egp: number; usd:
     FROM wallet_transactions
   `;
   return { egp: Number(row.egp), usd: Number(row.usd), rmb: Number(row.rmb) };
+}
+
+// ── Transactions Page ─────────────────────────────────────────────────────────
+
+export type TransactionRow = WalletTransaction & {
+  created_by_name: string;
+};
+
+const TRANSACTIONS_PER_PAGE = 10;
+
+export async function fetchTransactionsPage(page: number): Promise<TransactionRow[]> {
+  const offset = (page - 1) * TRANSACTIONS_PER_PAGE;
+  return sql<TransactionRow[]>`
+    SELECT wt.*, u.name AS created_by_name
+    FROM wallet_transactions wt
+    JOIN users u ON u.id = wt.created_by
+    ORDER BY wt.created_at DESC
+    LIMIT ${TRANSACTIONS_PER_PAGE} OFFSET ${offset}
+  `;
+}
+
+export async function getTransactionPageCount(): Promise<number> {
+  const [{ count }] = await sql<{ count: string }[]>`
+    SELECT COUNT(*)::text AS count FROM wallet_transactions
+  `;
+  return Math.ceil(parseInt(count) / TRANSACTIONS_PER_PAGE);
 }
 
 // ── Dashboard Summary ─────────────────────────────────────────────────────────

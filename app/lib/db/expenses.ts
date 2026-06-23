@@ -22,6 +22,8 @@ export type Expense = {
   next_due_date:  string | null;
   is_active:      boolean;
   created_at:     string;
+  created_by:     string;
+  edited_by:      string | null;
 };
 
 export type CreateExpenseInput = {
@@ -29,6 +31,7 @@ export type CreateExpenseInput = {
   expense_type:    ExpenseType;
   recurrence:      "once" | "monthly";
   amount:          number;
+  created_by:      string;
   currency?:       WalletCurrency;
   payment_method?: PaymentMethod;
   description?:    string;
@@ -38,6 +41,7 @@ export type CreateExpenseInput = {
 };
 
 export type UpdateExpenseInput = {
+  edited_by:       string;
   category?:       string;
   expense_type?:   ExpenseType;
   amount?:         number;
@@ -114,7 +118,7 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
     : null;
 
   const [row] = await sql<Expense[]>`
-    INSERT INTO expenses (category, expense_type, recurrence, amount, currency, payment_method, description, expense_date, next_due_date, is_active)
+    INSERT INTO expenses (category, expense_type, recurrence, amount, currency, payment_method, description, expense_date, next_due_date, is_active, created_by)
     VALUES (
       ${input.category},
       ${input.expense_type},
@@ -125,7 +129,8 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
       ${input.description   ?? null},
       ${expenseDate},
       ${nextDue},
-      ${input.is_active ?? true}
+      ${input.is_active ?? true},
+      ${input.created_by}
     )
     RETURNING *
   `;
@@ -168,6 +173,7 @@ export async function updateExpense(
         payment_method = COALESCE(${input.payment_method ?? null}::payment_method, payment_method),
         description    = COALESCE(${input.description   ?? null}, description),
         is_active      = COALESCE(${input.is_active     ?? null}, is_active),
+        edited_by      = ${input.edited_by},
         next_due_date  = CASE
           WHEN ${input.next_due_date !== undefined ? 'true' : 'false'} = 'true'
           THEN ${input.next_due_date ?? null}
@@ -193,7 +199,8 @@ export async function updateExpense(
         expense_type   = COALESCE(${input.expense_type  ?? null}::expense_type, expense_type),
         payment_method = COALESCE(${input.payment_method ?? null}::payment_method, payment_method),
         description    = COALESCE(${input.description   ?? null}, description),
-        is_active      = COALESCE(${input.is_active     ?? null}, is_active)
+        is_active      = COALESCE(${input.is_active     ?? null}, is_active),
+        edited_by      = ${input.edited_by}
       WHERE id = ${id}
       RETURNING *
     `;
@@ -218,10 +225,10 @@ export async function updateExpense(
     // Write reversal: old amount comes back in (undoes old deduction)
     const [reversalTx] = await tx<{ id: string }[]>`
       INSERT INTO wallet_transactions
-        (currency, amount, direction, reason, reference_id, corrects_id)
+        (currency, amount, direction, reason, reference_id, corrects_id, created_by)
       VALUES
         (${oldCurrency}::wallet_currency, ${oldAmount.toFixed(2)}::numeric,
-         'in', 'expense', ${id}, ${originalTx?.id ?? null})
+         'in', 'expense', ${id}, ${originalTx?.id ?? null}, ${input.edited_by})
       RETURNING id
     `;
 
@@ -236,10 +243,10 @@ export async function updateExpense(
     // Write correction: new amount goes out (applies new values)
     await tx`
       INSERT INTO wallet_transactions
-        (currency, amount, direction, reason, reference_id, corrects_id)
+        (currency, amount, direction, reason, reference_id, corrects_id, created_by)
       VALUES
         (${newCurrency}::wallet_currency, ${newAmount.toFixed(2)}::numeric,
-         'out', 'expense', ${id}, ${reversalTx.id})
+         'out', 'expense', ${id}, ${reversalTx.id}, ${input.edited_by})
     `;
 
     await tx`
@@ -259,7 +266,8 @@ export async function updateExpense(
         expense_type   = COALESCE(${input.expense_type  ?? null}::expense_type, expense_type),
         payment_method = COALESCE(${input.payment_method ?? null}::payment_method, payment_method),
         description    = COALESCE(${input.description   ?? null}, description),
-        is_active      = COALESCE(${input.is_active     ?? null}, is_active)
+        is_active      = COALESCE(${input.is_active     ?? null}, is_active),
+        edited_by      = ${input.edited_by}
       WHERE id = ${id}
       RETURNING *
     `;
@@ -295,6 +303,7 @@ export async function fireMonthlyExpense(templateId: string): Promise<Expense> {
     description:    template.description ?? undefined,
     expense_date:   new Date(),
     is_active:      false,
+    created_by:     template.created_by,
   });
 
   const nextDue = addOneMonth(new Date(template.next_due_date ?? new Date()));

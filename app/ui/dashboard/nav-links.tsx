@@ -10,6 +10,7 @@ import {
   BanknotesIcon,
   WalletIcon,
   ScaleIcon,
+  ArrowsRightLeftIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -22,6 +23,7 @@ const MANAGER_PATHS = new Set([
   '/dashboard/orders',
   '/dashboard/expenses',
   '/dashboard/wallet',
+  '/dashboard/transactions',
 ]);
 
 const links = [
@@ -33,7 +35,8 @@ const links = [
   { name: 'Suppliers', href: '/dashboard/suppliers', icon: BuildingStorefrontIcon},
   { name: 'Orders',    href: '/dashboard/orders',    icon: ShoppingCartIcon      },
   { name: 'Expenses',  href: '/dashboard/expenses',  icon: BanknotesIcon         },
-  { name: 'Wallet',    href: '/dashboard/wallet',    icon: WalletIcon            },
+  { name: 'Transactions',  href: '/dashboard/transactions',  icon: ArrowsRightLeftIcon   },
+  { name: 'Wallet',        href: '/dashboard/wallet',        icon: WalletIcon            },
 ];
 
 export default function NavLinks({ role }: { role?: string }) {

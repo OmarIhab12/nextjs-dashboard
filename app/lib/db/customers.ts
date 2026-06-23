@@ -305,6 +305,7 @@ export async function addPaymentForCustomer(
   customerId: string,
   amount: number,
   paymentMethod: string,
+  createdBy: string,
   reference?: string
 ): Promise<void> {
   await sql.begin(async (tx) => {
@@ -326,12 +327,13 @@ export async function addPaymentForCustomer(
  
     // Insert payment record — use the first invoice_id as the anchor
     const [payment] = await tx`
-      INSERT INTO payments (invoice_id, amount, payment_method, reference)
+      INSERT INTO payments (invoice_id, amount, payment_method, reference, created_by)
       VALUES (
         ${installments[0].invoice_id},
         ${amount},
         ${paymentMethod}::payment_method,
-        ${reference ?? null}
+        ${reference ?? null},
+        ${createdBy}
       )
       RETURNING *
     `;

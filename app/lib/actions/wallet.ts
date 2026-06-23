@@ -4,6 +4,7 @@
 
 import { revalidatePath }   from 'next/cache';
 import { createConversion } from '@/app/lib/db/currency-conversions';
+import { auth }             from '@/auth';
 
 export type ConversionState = {
   error: string | null;
@@ -19,6 +20,9 @@ export async function createConversionAction(
   formData: FormData,
 ): Promise<ConversionState> {
   try {
+    const session = await auth();
+    if (!session?.user?.id) return { error: 'You must be signed in.' };
+
     const from_amount   = parseFloat(formData.get('from_amount')   as string);
     const to_amount     = parseFloat(formData.get('to_amount')     as string);
     const exchange_rate = parseFloat(formData.get('exchange_rate') as string);
@@ -34,7 +38,8 @@ export async function createConversionAction(
       from_amount,
       to_amount,
       exchange_rate,
-      direction: direction as typeof VALID_DIRECTIONS[number],
+      direction:  direction as typeof VALID_DIRECTIONS[number],
+      created_by: session.user.id,
       notes,
     });
 

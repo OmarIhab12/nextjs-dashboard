@@ -8,6 +8,7 @@ import {
   fireMonthlyExpense,
   getDueMonthlyExpenses,
 } from '@/app/lib/db/expenses';
+import { auth } from '@/auth';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,9 @@ export async function createExpenseAction(
   formData: FormData,
 ): Promise<ExpenseFormState> {
   try {
+    const session = await auth();
+    if (!session?.user?.id) return { error: 'You must be signed in.' };
+
     const category       = formData.get('category')       as string;
     const expense_type   = formData.get('expense_type')   as string;
     const payment_method = formData.get('payment_method') as string;
@@ -29,12 +33,12 @@ export async function createExpenseAction(
     const currency       = formData.get('currency')       as string || 'EGP';
     const description    = formData.get('description')    as string;
 
-    if (!category?.trim())          return { error: 'Category is required.' };
-    if (!expense_type)              return { error: 'Expense type is required.' };
-    if (!payment_method)            return { error: 'Payment method is required.' };
-    if (!amount || amount <= 0)     return { error: 'Amount must be greater than zero.' };
-    if (!['once', 'monthly'].includes(recurrence))          return { error: 'Invalid recurrence.' };
-    if (!['EGP', 'USD', 'RMB'].includes(currency))          return { error: 'Invalid currency.' };
+    if (!category?.trim())                          return { error: 'Category is required.' };
+    if (!expense_type)                              return { error: 'Expense type is required.' };
+    if (!payment_method)                            return { error: 'Payment method is required.' };
+    if (!amount || amount <= 0)                     return { error: 'Amount must be greater than zero.' };
+    if (!['once', 'monthly'].includes(recurrence))  return { error: 'Invalid recurrence.' };
+    if (!['EGP', 'USD', 'RMB'].includes(currency))  return { error: 'Invalid currency.' };
 
     await createExpense({
       category:       category.trim(),
@@ -44,6 +48,7 @@ export async function createExpenseAction(
       amount,
       currency:       currency as any,
       description:    description?.trim() || undefined,
+      created_by:     session.user.id,
     });
 
     revalidatePath('/dashboard/expenses');
@@ -61,6 +66,9 @@ export async function updateExpenseAction(
   formData: FormData,
 ): Promise<ExpenseFormState> {
   try {
+    const session = await auth();
+    if (!session?.user?.id) return { error: 'You must be signed in.' };
+
     const category       = formData.get('category')       as string;
     const expense_type   = formData.get('expense_type')   as string;
     const payment_method = formData.get('payment_method') as string;
@@ -75,6 +83,7 @@ export async function updateExpenseAction(
     if (!['EGP', 'USD', 'RMB'].includes(currency)) return { error: 'Invalid currency.' };
 
     await updateExpense(id, {
+      edited_by:      session.user.id,
       category:       category.trim(),
       expense_type:   expense_type   as any,
       payment_method: payment_method as any,

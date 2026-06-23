@@ -16,6 +16,14 @@ export default async function SideNav() {
           <VinslonLogo />
         </div>
       </Link>
+      {session?.user?.name && (
+        <div className="mb-2 hidden items-center gap-2 rounded-md bg-gray-50 px-3 py-2 md:flex">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold uppercase text-gray-600">
+            {session.user.name.charAt(0)}
+          </div>
+          <span className="truncate text-sm font-medium text-gray-700">{session.user.name}</span>
+        </div>
+      )}
       <div className="flex grow flex-row justify-between space-x-2 md:flex-col md:space-x-0 md:space-y-2">
         <NavLinks role={session?.user?.role} />
         <div className="hidden h-auto w-full grow rounded-md bg-gray-50 md:block"></div>

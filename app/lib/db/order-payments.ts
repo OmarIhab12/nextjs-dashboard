@@ -16,6 +16,7 @@ export type OrderPayment = {
   notes:          string | null;
   paid_at:        string;
   created_at:     string;
+  created_by:     string;
 };
 
 export type OrderPaymentAllocation = {
@@ -27,6 +28,7 @@ export type CreateOrderPaymentInput = {
   order_id:       string;
   amount_rmb:     number;
   payment_method: PaymentMethod;
+  created_by:     string;
   reference?:     string;
   notes?:         string;
   paid_at?:       Date;
@@ -95,14 +97,15 @@ export async function createOrderPayment(
   return await sql.begin(async (tx) => {
     // 1. Insert payment — DB trigger handles wallet & order.paid_usd
     const [payment] = await tx<OrderPayment[]>`
-      INSERT INTO order_payments (order_id, amount_rmb, payment_method, reference, notes, paid_at)
+      INSERT INTO order_payments (order_id, amount_rmb, payment_method, reference, notes, paid_at, created_by)
       VALUES (
         ${input.order_id},
         ${input.amount_rmb.toFixed(2)}::numeric,
         ${input.payment_method}::payment_method,
-        ${input.reference ?? null},
-        ${input.notes     ?? null},
-        ${input.paid_at   ?? new Date()}
+        ${input.reference  ?? null},
+        ${input.notes      ?? null},
+        ${input.paid_at    ?? new Date()},
+        ${input.created_by}
       )
       RETURNING *
     `;

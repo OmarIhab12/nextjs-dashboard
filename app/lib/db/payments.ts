@@ -11,6 +11,7 @@ export interface Payment {
   notes: string | null;
   paid_at: Date;
   created_at: Date;
+  created_by: string;
 }
 
 export interface PaymentInstallment {
@@ -30,6 +31,7 @@ export interface CreatePaymentInput {
   amount: number;
   payment_method: PaymentMethod;
   allocations: PaymentAllocationInput[]; // must sum to amount
+  created_by: string;
   reference?: string;
   notes?: string;
   paid_at?: Date;
@@ -106,14 +108,15 @@ export async function createPayment(
     const [payment] = await tx<Payment[]>`
       INSERT INTO payments (
         invoice_id, amount, payment_method,
-        reference, notes, paid_at
+        reference, notes, paid_at, created_by
       ) VALUES (
         ${input.invoice_id},
         ${input.amount},
         ${input.payment_method}::payment_method,
-        ${input.reference ?? null},
-        ${input.notes     ?? null},
-        ${input.paid_at   ?? new Date()}
+        ${input.reference  ?? null},
+        ${input.notes      ?? null},
+        ${input.paid_at    ?? new Date()},
+        ${input.created_by}
       )
       RETURNING *
     `;

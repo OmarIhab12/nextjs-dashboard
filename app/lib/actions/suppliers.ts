@@ -11,6 +11,7 @@ import {
 import { createOrderPayment, buildOrderPaymentAllocations } from '@/app/lib/db/order-payments';
 import { getInstalmentsByOrder } from '@/app/lib/db/order-instalments';
 import { getAllOrders } from '@/app/lib/db/orders';
+import { auth } from '@/auth';
 
 export async function createSupplierAction(input: CreateSupplierInput) {
   try {
@@ -47,6 +48,9 @@ export async function addSupplierPaymentAction(
   fd: FormData,
 ): Promise<{ error: string | null }> {
   try {
+    const session = await auth();
+    if (!session?.user?.id) return { error: 'You must be signed in.' };
+
     const amount         = parseFloat(fd.get('amount') as string);
     const payment_method = fd.get('payment_method') as string;
     const reference      = (fd.get('reference') as string) || undefined;
@@ -71,6 +75,7 @@ export async function addSupplierPaymentAction(
       order_id:       targetOrder.id,
       amount_rmb:     amount,
       payment_method: payment_method as any,
+      created_by:     session.user.id,
       reference,
       allocations,
     });

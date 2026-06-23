@@ -17,6 +17,7 @@ export type CurrencyConversion = {
   direction:     ConversionDirection;
   notes:         string | null;
   converted_at:  string;
+  created_by:    string;
 };
 
 export type CreateConversionInput = {
@@ -24,6 +25,7 @@ export type CreateConversionInput = {
   to_amount:     number;
   exchange_rate: number;
   direction:     ConversionDirection;
+  created_by:    string;
   notes?:        string;
   converted_at?: Date;
 };
@@ -108,14 +110,15 @@ export async function createConversion(
   input: CreateConversionInput,
 ): Promise<CurrencyConversion> {
   const [row] = await sql<CurrencyConversion[]>`
-    INSERT INTO currency_conversions (from_amount, to_amount, exchange_rate, direction, notes, converted_at)
+    INSERT INTO currency_conversions (from_amount, to_amount, exchange_rate, direction, notes, converted_at, created_by)
     VALUES (
       ${input.from_amount.toFixed(2)}::numeric,
       ${input.to_amount.toFixed(2)}::numeric,
       ${input.exchange_rate.toFixed(4)}::numeric,
       ${input.direction},
       ${input.notes        ?? null},
-      ${input.converted_at ?? new Date()}
+      ${input.converted_at ?? new Date()},
+      ${input.created_by}
     )
     RETURNING *
   `;
