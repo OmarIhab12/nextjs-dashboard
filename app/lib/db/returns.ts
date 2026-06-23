@@ -321,8 +321,8 @@ export async function createReturn(input: CreateReturnInput): Promise<ReturnWith
       const accountId = input.account_id ?? null;
 
       await tx`
-        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, account_id)
-        VALUES ('EGP', ${cashToRefund.toFixed(2)}, 'out', 'customer_refund', ${returnRecord.id}, ${accountId})
+        INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, account_id, created_by)
+        VALUES ('EGP', ${cashToRefund.toFixed(2)}, 'out', 'customer_refund', ${returnRecord.id}, ${accountId}, ${input.created_by})
       `;
       await tx`
         UPDATE company_wallet
