@@ -1,4 +1,4 @@
-import ReturnForm from '@/app/ui/invoices/return-form';
+import ReturnForm from '../../../../../ui/invoices/return-form';
 import Breadcrumbs from '@/app/ui/invoices/breadcrumbs';
 import { getInvoiceById, getInvoiceInstallmentTotals } from '@/app/lib/db/invoices';
 import { createReturnAction, getAlreadyReturnedQuantities } from '@/app/lib/db/returns';
