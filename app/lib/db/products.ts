@@ -128,7 +128,7 @@ export async function deleteProduct(id: string): Promise<boolean> {
   return result.count > 0;
 }
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 30;
  
 export async function fetchFilteredProducts(
   query: string,
