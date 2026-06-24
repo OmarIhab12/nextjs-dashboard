@@ -324,7 +324,7 @@ export function InvoicePDF({ invoice }: { invoice: InvoicePDFData }) {
             <Text style={[s.cellText, s.colCode]}>
               {item.sku ? `#${item.sku}` : '-'}
             </Text>
-            <Text style={[s.cellText, s.colName]}>{ar(item.productName)}</Text>
+            <Text style={[s.cellText, s.colName, {direction: isArabic(item.productName) ? 'rtl' : 'ltr' }]}>{ar(item.productName)}</Text>
             <Text style={[s.cellText, s.colQty]}>{item.quantity}</Text>
             <Text style={[s.cellText, s.colPrice]}>{fmt(item.unitPrice)}</Text>
             <Text style={[s.cellText, s.colTotal]}>{fmt(item.lineTotal)}</Text>

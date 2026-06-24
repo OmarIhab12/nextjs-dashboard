@@ -78,12 +78,14 @@ function EditInput({
   placeholder,
   type = 'text',
   className = '',
+  dir,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   type?: string;
   className?: string;
+  dir?: string;
 }) {
   return (
     <input
@@ -93,6 +95,7 @@ function EditInput({
       placeholder={placeholder}
       step={type === 'number' ? '0.01' : undefined}
       min={type === 'number' ? '0' : undefined}
+      dir={dir}
       className={`block w-full rounded-md border border-gray-300 bg-white py-1 px-2 text-sm text-gray-900 outline-none focus:border-gray-500 focus:ring-1 focus:ring-gray-500 ${className}`}
     />
   );
@@ -293,13 +296,13 @@ export default function ProductsTable({ products }: { products: ProductRow[] }) 
                   {/* Name / Description */}
                   {isEditing ? (
                     <div className="flex flex-col gap-1">
-                      <EditInput value={state.name} onChange={(v) => setEdit(row._key, { name: v })} placeholder="Product name" />
-                      <EditInput value={state.description} onChange={(v) => setEdit(row._key, { description: v })} placeholder="Description (optional)" />
+                      <EditInput value={state.name} onChange={(v) => setEdit(row._key, { name: v })} placeholder="Product name" dir="auto" />
+                      <EditInput value={state.description} onChange={(v) => setEdit(row._key, { description: v })} placeholder="Description (optional)" dir="auto" />
                     </div>
                   ) : (
-                    <div className={`flex flex-col py-1 ${!row.is_active ? 'opacity-50' : ''}`}>
-                      <span className="text-sm font-medium text-gray-800">{row.name}</span>
-                      {row.description && <span className="text-xs text-gray-400 line-clamp-1">{row.description}</span>}
+                    <div className={`flex flex-col py-1 text-left ${!row.is_active ? 'opacity-50' : ''}`}>
+                      <span dir="auto" className="text-sm font-medium text-gray-800">{row.name}</span>
+                      {row.description && <span dir="auto" className="text-xs text-gray-400 line-clamp-1">{row.description}</span>}
                     </div>
                   )}
 

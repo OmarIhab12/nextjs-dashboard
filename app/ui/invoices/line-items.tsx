@@ -167,6 +167,7 @@ export default function LineItems({
                   <option
                     key={p.id}
                     value={p.id}
+                    dir="auto"
                     disabled={
                       !p.is_active ||
                       items.some((i) => i._key !== item._key && i.product_id === p.id)

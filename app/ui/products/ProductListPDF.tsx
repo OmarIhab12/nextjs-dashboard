@@ -262,7 +262,7 @@ export function ProductListPDF({ products }: { products: ProductListItem[] }) {
             <Text style={[s.cellMono, s.colCode]}>
               {item.sku ? `#${item.sku}` : '-'}
             </Text>
-            <Text style={[s.cellText, s.colName]}>{ar(item.name)}</Text>
+            <Text style={[s.cellText, s.colName, {direction: isArabic(item.name) ? 'rtl' : 'ltr' }]}>{ar(item.name)}</Text>
             <Text style={[s.cellText, s.colPrice]}>{fmt(item.price)}</Text>
           </View>
         ))}

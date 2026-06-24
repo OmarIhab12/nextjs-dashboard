@@ -144,7 +144,7 @@ export default function OrderLineItems({
             >
               <option value="">Select product…</option>
               {products.map((p) => (
-                <option key={p.id} value={p.id}>
+                <option key={p.id} value={p.id} dir="auto">
                   {p.name}{p.sku ? ` (${p.sku})` : ''}{!p.is_active ? ' — Inactive' : ''}
                 </option>
               ))}

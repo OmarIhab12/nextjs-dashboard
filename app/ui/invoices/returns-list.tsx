@@ -63,7 +63,7 @@ export default async function ReturnsList({
             <tbody className="divide-y divide-gray-50">
               {r.items.map((item) => (
                 <tr key={item.id}>
-                  <td className="px-4 py-2 text-gray-700">{item.product_name}</td>
+                  <td dir="auto" className="px-4 py-2 text-gray-700 text-left">{item.product_name}</td>
                   <td className="px-4 py-2 text-right tabular-nums text-gray-500">
                     {formatCurrencyEGP(Number(item.unit_price))}
                   </td>

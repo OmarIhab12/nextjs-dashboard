@@ -104,7 +104,7 @@ export default function ReturnForm({
 
                   return (
                     <tr key={item.id} className={maxReturnable === 0 ? 'opacity-40' : ''}>
-                      <td className="px-4 py-3 font-medium text-gray-800">{item.product_name}</td>
+                      <td dir="auto" className="px-4 py-3 font-medium text-gray-800 text-left">{item.product_name}</td>
                       <td className="px-4 py-3 text-right tabular-nums">
                         <span>{formatCurrencyEGP(effectiveUnitPrice)}</span>
                         {hasDiscount && (
