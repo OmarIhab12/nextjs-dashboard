@@ -118,6 +118,19 @@ export type InvoicePDFData = {
     unitPrice:   number;
     lineTotal:   number;
   }[];
+  returns: {
+    id:             string;
+    createdAt:      string;
+    resolutionType: 'credit' | 'cash_refund';
+    creditAmount:   number;
+    reason:         string | null;
+    items: {
+      productName: string;
+      quantity:    number;
+      unitPrice:   number;
+      lineTotal:   number;
+    }[];
+  }[];
 };
 
 // ── Helpers ──────────────────────────────────────────────────

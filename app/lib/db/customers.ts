@@ -255,7 +255,7 @@ export async function getCustomerPageData(
 export type StatementTransaction = {
   event_date: string;   // DD/MM/YYYY
   amount:     number;   // positive = invoice, negative = payment (as stored)
-  event_type: 'invoice' | 'payment';
+  event_type: 'invoice' | 'payment' | 'return_credit' | 'return_cash';
 };
 
 export async function getCustomerStatement(customerId: string): Promise<{
