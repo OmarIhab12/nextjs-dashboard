@@ -51,7 +51,7 @@ function ar(text: string): string {
 export type StatementTransaction = {
   event_date: string;
   amount:     number;
-  event_type: 'invoice' | 'payment';
+  event_type: 'invoice' | 'payment' | 'return_credit' | 'return_cash';
 };
 
 export type CustomerStatementData = {
@@ -72,11 +72,17 @@ function buildRows(transactions: StatementTransaction[]): Row[] {
     const delta = t.event_type === 'invoice' ? t.amount : -t.amount;
     balance += delta;
 
+    const label =
+      t.event_type === 'invoice'       ? ar('فاتورة جديدة')  :
+      t.event_type === 'return_credit' ? ar('مرتجع - رصيد')  :
+      t.event_type === 'return_cash'   ? ar('مرتجع - نقدي')  :
+                                         ar('دفعات');
+
     rows.push({
       kind:   'tx',
       date:   t.event_date,
       amount: delta,
-      label:  t.event_type === 'invoice' ? ar('فاتورة جديدة') : ar('دفعات'),
+      label,
     });
 
     rows.push({ kind: 'balance', balance, isFinal: false });

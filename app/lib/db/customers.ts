@@ -286,6 +286,19 @@ export async function getCustomerStatement(customerId: string): Promise<{
       SELECT id FROM invoices WHERE customer_id = ${customerId}
     )
 
+    UNION ALL
+
+    SELECT
+      TO_CHAR(r.created_at, 'DD/MM/YYYY')                              AS event_date,
+      r.credit_amount::text                                            AS amount,
+      CASE r.resolution_type
+        WHEN 'cash_refund' THEN 'return_cash'
+        ELSE                    'return_credit'
+      END                                                              AS event_type
+    FROM returns r
+    JOIN invoices i ON i.id = r.invoice_id
+    WHERE i.customer_id = ${customerId}
+
     ORDER BY event_date ASC
   `;
 
@@ -294,7 +307,7 @@ export async function getCustomerStatement(customerId: string): Promise<{
     transactions: rows.map((r) => ({
       event_date: r.event_date,
       amount:     Number(r.amount),
-      event_type: r.event_type as 'invoice' | 'payment',
+      event_type: r.event_type as 'invoice' | 'payment' | 'return_credit' | 'return_cash',
     })),
   };
 }

@@ -815,6 +815,44 @@ export async function fetchInvoiceForPDF(
     ORDER BY ii.id ASC
   `;
 
+  // ── Returns ───────────────────────────────────────────────────────────
+  const returnRows = await sql<{
+    id:              string;
+    created_at:      string;
+    resolution_type: string;
+    credit_amount:   string;
+    reason:          string | null;
+  }[]>`
+    SELECT id, created_at::text, resolution_type, credit_amount, reason
+    FROM returns
+    WHERE invoice_id = ${invoiceId}
+    ORDER BY created_at ASC
+  `;
+
+  type ReturnItemRow = {
+    return_id:    string;
+    product_name: string;
+    quantity:     number;
+    unit_price:   string;
+    line_total:   string;
+  };
+
+  const returnItems: ReturnItemRow[] = returnRows.length > 0
+    ? await sql<ReturnItemRow[]>`
+        SELECT return_id, product_name, quantity, unit_price, line_total
+        FROM return_items
+        WHERE return_id = ANY(${returnRows.map((r) => r.id)})
+        ORDER BY id ASC
+      `
+    : [];
+
+  const itemsByReturn = new Map<string, ReturnItemRow[]>();
+  for (const ri of returnItems) {
+    const list = itemsByReturn.get(ri.return_id) ?? [];
+    list.push(ri);
+    itemsByReturn.set(ri.return_id, list);
+  }
+
   return {
     id:             row.id,
     customerName:   row.customer_name,
@@ -830,6 +868,19 @@ export async function fetchInvoiceForPDF(
       quantity:    item.quantity,
       unitPrice:   parseFloat(item.unit_price),
       lineTotal:   parseFloat(item.line_total),
+    })),
+    returns: returnRows.map((r) => ({
+      id:             r.id,
+      createdAt:      r.created_at,
+      resolutionType: r.resolution_type as 'credit' | 'cash_refund',
+      creditAmount:   parseFloat(r.credit_amount),
+      reason:         r.reason,
+      items: (itemsByReturn.get(r.id) ?? []).map((ri) => ({
+        productName: ri.product_name,
+        quantity:    ri.quantity,
+        unitPrice:   parseFloat(ri.unit_price),
+        lineTotal:   parseFloat(ri.line_total),
+      })),
     })),
   };
 }

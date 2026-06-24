@@ -48,6 +48,22 @@ function isArabic(text: string): boolean {
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
+export type InvoiceReturnItem = {
+  productName: string;
+  quantity:    number;
+  unitPrice:   number;
+  lineTotal:   number;
+};
+
+export type InvoiceReturn = {
+  id:             string;
+  createdAt:      string;
+  resolutionType: 'credit' | 'cash_refund';
+  creditAmount:   number;
+  reason:         string | null;
+  items:          InvoiceReturnItem[];
+};
+
 export type InvoicePDFData = {
   id:             string;
   customerName:   string;
@@ -64,6 +80,7 @@ export type InvoicePDFData = {
     unitPrice:   number;
     lineTotal:   number;
   }[];
+  returns: InvoiceReturn[];
 };
 
 // ── Styles ───────────────────────────────────────────────────────────────────
@@ -200,6 +217,73 @@ const s = StyleSheet.create({
     textAlign:  'center',
   },
 
+  // ── Returns section ──
+  returnsSectionTitle: {
+    fontSize:     11,
+    fontWeight:   700,
+    color:        '#333333',
+    textAlign:    'right',
+    marginBottom: 6,
+    marginTop:    16,
+  },
+  returnBlock: {
+    marginBottom: 10,
+    borderWidth:  0.5,
+    borderColor:  '#dddddd',
+    borderRadius: 3,
+  },
+  returnHeaderRow: {
+    flexDirection:   'row-reverse',
+    backgroundColor: '#f5f5f5',
+    paddingVertical:   5,
+    paddingHorizontal: 6,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#dddddd',
+  },
+  returnHeaderDate: {
+    fontSize:  9,
+    color:     '#555555',
+    width:     '25%',
+    textAlign: 'center',
+  },
+  returnHeaderType: {
+    fontSize:    9,
+    fontWeight:  700,
+    width:       '45%',
+    textAlign:   'center',
+    paddingHorizontal: 4,
+    paddingVertical:   1,
+    borderRadius: 2,
+  },
+  typeCash:   { color: '#92400e', backgroundColor: '#fef3c7' },
+  typeCredit: { color: '#166534', backgroundColor: '#dcfce7' },
+  returnHeaderAmount: {
+    fontSize:   9,
+    fontWeight: 700,
+    color:      '#111111',
+    width:      '30%',
+    textAlign:  'center',
+  },
+  returnItemRow: {
+    flexDirection:     'row-reverse',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#eeeeee',
+    paddingVertical:   4,
+    paddingHorizontal: 6,
+  },
+  rColName:  { width: '55%', textAlign: 'right'  },
+  rColQty:   { width: '15%', textAlign: 'center' },
+  rColPrice: { width: '15%', textAlign: 'center' },
+  rColTotal: { width: '15%', textAlign: 'center' },
+  returnItemsHeader: {
+    flexDirection:     'row-reverse',
+    backgroundColor:   '#fafafa',
+    paddingVertical:   3,
+    paddingHorizontal: 6,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#dddddd',
+  },
+
   // ── Notes ──
   notesSection: {
     marginTop:       20,
@@ -250,7 +334,10 @@ function fmt(n: number): string {
 
 // ── Document Component ────────────────────────────────────────────────────────
 export function InvoicePDF({ invoice }: { invoice: InvoicePDFData }) {
-  const hasDiscount = invoice.discountAmount > 0;
+  const hasDiscount  = invoice.discountAmount > 0;
+  const totalReturns = invoice.returns.reduce((sum, r) => sum + r.creditAmount, 0);
+  const hasReturns   = totalReturns > 0;
+  const netTotal     = invoice.total - totalReturns;
 
   return (
     <Document>
@@ -346,15 +433,74 @@ export function InvoicePDF({ invoice }: { invoice: InvoicePDFData }) {
             </View>
           )}
 
+          {hasReturns && (
+            <View style={s.totalRow}>
+              <Text style={s.totalLabel}>{ar('المرتجعات')}</Text>
+              <Text style={s.totalValue}>- {fmt(totalReturns)}</Text>
+            </View>
+          )}
+
           <View style={s.thinDivider} />
 
           <View style={s.totalRow}>
             <Text style={s.grandTotalLabel}>
-              {ar(hasDiscount ? 'بعد الخصم' : 'الإجمالي')}
+              {ar(hasReturns ? 'صافي الالتزام' : hasDiscount ? 'بعد الخصم' : 'الإجمالي')}
             </Text>
-            <Text style={s.grandTotalValue}>{fmt(invoice.total)}</Text>
+            <Text style={s.grandTotalValue}>{fmt(hasReturns ? netTotal : invoice.total)}</Text>
           </View>
         </View>
+
+        {/* ── Returns Table ── */}
+        {hasReturns && (
+          <>
+            <View style={s.divider} />
+            <Text style={s.returnsSectionTitle}>{ar('تفاصيل المرتجعات')}</Text>
+
+            {invoice.returns.map((ret, ri) => (
+              <View key={ri} style={s.returnBlock}>
+
+                {/* Per-return header: date | type badge | total */}
+                <View style={s.returnHeaderRow}>
+                  <Text style={s.returnHeaderDate}>{formatDate(ret.createdAt)}</Text>
+                  <Text style={[s.returnHeaderType, ret.resolutionType === 'cash_refund' ? s.typeCash : s.typeCredit]}>
+                    {ret.resolutionType === 'cash_refund' ? ar('استرداد نقدي') : ar('رصيد دائن')}
+                  </Text>
+                  <Text style={s.returnHeaderAmount}>- {fmt(ret.creditAmount)}</Text>
+                </View>
+
+                {/* Column headers */}
+                <View style={s.returnItemsHeader}>
+                  <Text style={[s.headerText, s.rColName ]}>{ar('الصنف')}</Text>
+                  <Text style={[s.headerText, s.rColQty  ]}>{ar('العدد')}</Text>
+                  <Text style={[s.headerText, s.rColPrice]}>{ar('السعر')}</Text>
+                  <Text style={[s.headerText, s.rColTotal]}>{ar('الإجمالي')}</Text>
+                </View>
+
+                {/* Returned items */}
+                {ret.items.map((item, ii) => (
+                  <View key={ii} style={s.returnItemRow}>
+                    <Text style={[s.cellText, s.rColName,  { direction: isArabic(item.productName) ? 'rtl' : 'ltr' }]}>
+                      {ar(item.productName)}
+                    </Text>
+                    <Text style={[s.cellText, s.rColQty  ]}>{item.quantity}</Text>
+                    <Text style={[s.cellText, s.rColPrice]}>{fmt(item.unitPrice)}</Text>
+                    <Text style={[s.cellText, s.rColTotal]}>{fmt(item.lineTotal)}</Text>
+                  </View>
+                ))}
+
+                {/* Reason (if present) */}
+                {ret.reason && (
+                  <View style={{ paddingHorizontal: 6, paddingVertical: 4 }}>
+                    <Text style={{ fontSize: 9, color: '#666666', textAlign: 'right' }}>
+                      {ar('السبب: ')} {ret.reason}
+                    </Text>
+                  </View>
+                )}
+
+              </View>
+            ))}
+          </>
+        )}
 
         {/* ── Notes ── */}
         {invoice.notes && (
