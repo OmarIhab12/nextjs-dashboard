@@ -51,7 +51,7 @@ function ar(text: string): string {
 export type StatementTransaction = {
   event_date: string;
   amount:     number;
-  event_type: 'invoice' | 'payment' | 'return_credit' | 'return_cash';
+  event_type: 'invoice' | 'payment' | 'return_credit' | 'return_refund';
 };
 
 export type CustomerStatementData = {
@@ -61,7 +61,7 @@ export type CustomerStatementData = {
 
 // Each rendered row in the table
 type Row =
-  | { kind: 'tx';      date: string; amount: number; label: string }
+  | { kind: 'tx';      date: string; amount: number; label: string; isRefund: boolean }
   | { kind: 'balance'; balance: number; isFinal: boolean };
 
 function buildRows(transactions: StatementTransaction[]): Row[] {
@@ -69,26 +69,31 @@ function buildRows(transactions: StatementTransaction[]): Row[] {
   let balance = 0;
 
   for (const t of transactions) {
-    const delta = t.event_type === 'invoice' ? t.amount : -t.amount;
+    // return_refund offsets the obligation reduction (cash already given back)
+    const delta =
+      t.event_type === 'invoice'       ?  t.amount :
+      t.event_type === 'return_refund' ?  t.amount :
+                                         -t.amount;
     balance += delta;
 
     const label =
-      t.event_type === 'invoice'       ? ar('فاتورة جديدة')  :
-      t.event_type === 'return_credit' ? ar('مرتجع - رصيد')  :
-      t.event_type === 'return_cash'   ? ar('مرتجع - نقدي')  :
+      t.event_type === 'invoice'       ? ar('فاتورة جديدة') :
+      t.event_type === 'return_credit' ? ar('مرتجع')        :
+      t.event_type === 'return_refund' ? ar('استرداد نقدي') :
                                          ar('دفعات');
 
     rows.push({
-      kind:   'tx',
-      date:   t.event_date,
-      amount: delta,
+      kind:     'tx',
+      date:     t.event_date,
+      amount:   delta,
       label,
+      isRefund: t.event_type === 'return_refund',
     });
 
     rows.push({ kind: 'balance', balance, isFinal: false });
   }
 
-  // Mark the last balance row as المتبقى
+  // Mark the last balance row as final
   if (rows.length > 0) {
     const last = rows[rows.length - 1];
     if (last.kind === 'balance') last.isFinal = true;
@@ -171,13 +176,21 @@ const s = StyleSheet.create({
     paddingHorizontal: 6,
     backgroundColor:   '#f8f8f8',
   },
-  finalRow: {
+  finalCreditRow: {
     flexDirection:     'row-reverse',
     paddingVertical:   6,
     paddingHorizontal: 6,
-    backgroundColor:   '#fff8e1',
+    backgroundColor:   '#dcfce7',
     borderTopWidth:    1.5,
-    borderTopColor:    '#cccccc',
+    borderTopColor:    '#86efac',
+  },
+  finalDebitRow: {
+    flexDirection:     'row-reverse',
+    paddingVertical:   6,
+    paddingHorizontal: 6,
+    backgroundColor:   '#fee2e2',
+    borderTopWidth:    1.5,
+    borderTopColor:    '#fca5a5',
   },
 
   // Column Views — flex fills full row width; first JSX child = rightmost in RTL
@@ -189,12 +202,14 @@ const s = StyleSheet.create({
   tCenter: { textAlign: 'center' },
   tRight:  { textAlign: 'right'  },
 
-  headerText: { fontWeight: 700, fontSize: 10, color: '#333333' },
-  cellText:   { fontSize: 10, color: '#111111' },
-  balanceText:{ fontSize: 10, fontWeight: 700, color: '#222222' },
-  finalText:  { fontSize: 11, fontWeight: 700, color: '#000000' },
+  headerText:     { fontWeight: 700, fontSize: 10, color: '#333333' },
+  cellText:       { fontSize: 10, color: '#111111' },
+  balanceText:    { fontSize: 10, fontWeight: 700, color: '#222222' },
+  finalCreditText:{ fontSize: 11, fontWeight: 700, color: '#166534' },
+  finalDebitText: { fontSize: 11, fontWeight: 700, color: '#991b1b' },
   positiveAmount: { color: '#b45309' },
   negativeAmount: { color: '#15803d' },
+  refundAmount:   { color: '#1d4ed8' },
 
   // ── Footer ──
   footer: {
@@ -272,25 +287,39 @@ export function CustomerStatementPDF({ customerName, transactions }: CustomerSta
         {/* ── Rows ── */}
         {rows.map((row, i) => {
           if (row.kind === 'tx') {
-            const isNeg = row.amount < 0;
+            const isNeg      = row.amount < 0;
+            const amountStyle = row.isRefund
+              ? s.refundAmount
+              : isNeg ? s.negativeAmount : s.positiveAmount;
             return (
               <View key={i} style={s.txRow}>
                 <View style={s.colDate}>  <Text style={[s.cellText, s.tCenter]}>{row.date}</Text></View>
-                <View style={s.colAmount}><Text style={[s.cellText, s.tCenter, isNeg ? s.negativeAmount : s.positiveAmount]}>{fmtAmount(row.amount)}</Text></View>
+                <View style={s.colAmount}><Text style={[s.cellText, s.tCenter, amountStyle]}>{fmtAmount(row.amount)}</Text></View>
                 <View style={s.colReason}><Text style={[s.cellText, s.tRight]} >{row.label}</Text></View>
               </View>
             );
           }
 
           if (row.isFinal) {
-            const isCredit = row.balance < 0;
-            const label    = isCredit ? ar('رصيد دائن متاح') : ar('المتبقى');
-            const display  = fmtAmount(Math.abs(row.balance));
+            const isCredit  = row.balance < 0;
+            const label     = isCredit ? ar('رصيد دائن متاح') : ar('المتبقى');
+            const display   = fmtAmount(Math.abs(row.balance));
+            const rowStyle  = isCredit ? s.finalCreditRow  : s.finalDebitRow;
+            const textStyle = isCredit ? s.finalCreditText : s.finalDebitText;
             return (
-              <View key={i} style={s.finalRow}>
-                <View style={s.colDate}>  <Text style={[s.finalText, s.tCenter]}>{' '}</Text></View>
-                <View style={s.colAmount}><Text style={[s.finalText, s.tCenter]}>{display}</Text></View>
-                <View style={s.colReason}><Text style={[s.finalText, s.tRight]} >{label}</Text></View>
+              <View key={i}>
+                {/* Calculation line — raw value (negative when credit) */}
+                <View style={s.balanceRow}>
+                  <View style={s.colDate}>  <Text style={[s.balanceText, s.tCenter]}>{' '}</Text></View>
+                  <View style={s.colAmount}><Text style={[s.balanceText, s.tCenter]}>{fmtAmount(row.balance)}</Text></View>
+                  <View style={s.colReason}><Text style={[s.balanceText, s.tRight]} >{' '}</Text></View>
+                </View>
+                {/* Labeled final line */}
+                <View style={rowStyle}>
+                  <View style={s.colDate}>  <Text style={[textStyle, s.tCenter]}>{' '}</Text></View>
+                  <View style={s.colAmount}><Text style={[textStyle, s.tCenter]}>{display}</Text></View>
+                  <View style={s.colReason}><Text style={[textStyle, s.tRight]} >{label}</Text></View>
+                </View>
               </View>
             );
           }

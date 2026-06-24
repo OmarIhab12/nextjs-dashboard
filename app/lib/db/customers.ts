@@ -290,17 +290,31 @@ export async function getCustomerStatement(customerId: string): Promise<{
 
     UNION ALL
 
+    -- Return obligation lines (reduce what customer owes — applies to all return types)
     SELECT
-      TO_CHAR(r.created_at, 'DD/MM/YYYY')                     AS event_date,
-      r.credit_amount::text                                    AS amount,
-      CASE r.resolution_type
-        WHEN 'cash_refund' THEN 'return_cash'
-        ELSE                    'return_credit'
-      END                                                      AS event_type,
-      r.created_at                                             AS sort_at
+      TO_CHAR(r.created_at, 'DD/MM/YYYY')   AS event_date,
+      r.credit_amount::text                  AS amount,
+      'return_credit'                        AS event_type,
+      r.created_at                           AS sort_at
     FROM returns r
     JOIN invoices i ON i.id = r.invoice_id
     WHERE i.customer_id = ${customerId}
+
+    UNION ALL
+
+    -- Cash refund lines (money physically given back to customer)
+    SELECT
+      TO_CHAR(r.created_at, 'DD/MM/YYYY')   AS event_date,
+      wt.amount::text                        AS amount,
+      'return_refund'                        AS event_type,
+      r.created_at                           AS sort_at
+    FROM returns r
+    JOIN invoices i ON i.id = r.invoice_id
+    JOIN wallet_transactions wt
+      ON wt.reference_id = r.id
+     AND wt.reason = 'customer_refund'
+    WHERE i.customer_id = ${customerId}
+      AND r.resolution_type = 'cash_refund'
 
     ORDER BY sort_at ASC
   `;
