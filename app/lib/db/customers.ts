@@ -255,7 +255,7 @@ export async function getCustomerPageData(
 export type StatementTransaction = {
   event_date: string;   // DD/MM/YYYY
   amount:     number;   // positive = invoice, negative = payment (as stored)
-  event_type: 'invoice' | 'payment' | 'return_credit' | 'return_cash';
+  event_type: 'invoice' | 'payment' | 'return_credit' | 'return_refund';
 };
 
 export async function getCustomerStatement(customerId: string): Promise<{
@@ -324,7 +324,7 @@ export async function getCustomerStatement(customerId: string): Promise<{
     transactions: rows.map((r) => ({
       event_date: r.event_date,
       amount:     Number(r.amount),
-      event_type: r.event_type as 'invoice' | 'payment' | 'return_credit' | 'return_cash',
+      event_type: r.event_type as 'invoice' | 'payment' | 'return_credit' | 'return_refund',
     })),
   };
 }
