@@ -283,11 +283,14 @@ export function CustomerStatementPDF({ customerName, transactions }: CustomerSta
           }
 
           if (row.isFinal) {
+            const isCredit = row.balance < 0;
+            const label    = isCredit ? ar('رصيد دائن متاح') : ar('المتبقى');
+            const display  = fmtAmount(Math.abs(row.balance));
             return (
               <View key={i} style={s.finalRow}>
                 <View style={s.colDate}>  <Text style={[s.finalText, s.tCenter]}>{' '}</Text></View>
-                <View style={s.colAmount}><Text style={[s.finalText, s.tCenter]}>{fmtAmount(row.balance)}</Text></View>
-                <View style={s.colReason}><Text style={[s.finalText, s.tRight]} >{ar('المتبقى')}</Text></View>
+                <View style={s.colAmount}><Text style={[s.finalText, s.tCenter]}>{display}</Text></View>
+                <View style={s.colReason}><Text style={[s.finalText, s.tRight]} >{label}</Text></View>
               </View>
             );
           }

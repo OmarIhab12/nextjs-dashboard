@@ -270,8 +270,9 @@ export async function getCustomerStatement(customerId: string): Promise<{
   const rows = await sql<{ event_date: string; amount: string; event_type: string }[]>`
     SELECT
       TO_CHAR(created_at, 'DD/MM/YYYY') AS event_date,
-      total::text                       AS amount,
-      'invoice'                         AS event_type
+      total::text                                   AS amount,
+      'invoice'                                     AS event_type,
+      created_at                                    AS sort_at
     FROM invoices
     WHERE customer_id = ${customerId}
 
@@ -279,8 +280,9 @@ export async function getCustomerStatement(customerId: string): Promise<{
 
     SELECT
       TO_CHAR(p.paid_at, 'DD/MM/YYYY') AS event_date,
-      p.amount::text                    AS amount,
-      'payment'                         AS event_type
+      p.amount::text                               AS amount,
+      'payment'                                    AS event_type,
+      p.paid_at                                    AS sort_at
     FROM payments p
     WHERE p.invoice_id IN (
       SELECT id FROM invoices WHERE customer_id = ${customerId}
@@ -289,17 +291,18 @@ export async function getCustomerStatement(customerId: string): Promise<{
     UNION ALL
 
     SELECT
-      TO_CHAR(r.created_at, 'DD/MM/YYYY')                              AS event_date,
-      r.credit_amount::text                                            AS amount,
+      TO_CHAR(r.created_at, 'DD/MM/YYYY')                     AS event_date,
+      r.credit_amount::text                                    AS amount,
       CASE r.resolution_type
         WHEN 'cash_refund' THEN 'return_cash'
         ELSE                    'return_credit'
-      END                                                              AS event_type
+      END                                                      AS event_type,
+      r.created_at                                             AS sort_at
     FROM returns r
     JOIN invoices i ON i.id = r.invoice_id
     WHERE i.customer_id = ${customerId}
 
-    ORDER BY event_date ASC
+    ORDER BY sort_at ASC
   `;
 
   return {
