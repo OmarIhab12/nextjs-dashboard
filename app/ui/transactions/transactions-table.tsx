@@ -23,6 +23,7 @@ const REASON_LABEL: Record<TransactionRow['reason'], string> = {
   expense:         'Expense',
   order_payment:   'Order Payment',
   conversion:      'Conversion',
+  opening_balance: 'Opening Balance',
 };
 
 const REASON_STYLE: Record<TransactionRow['reason'], string> = {
@@ -31,6 +32,7 @@ const REASON_STYLE: Record<TransactionRow['reason'], string> = {
   expense:         'bg-red-50 text-red-700',
   order_payment:   'bg-purple-50 text-purple-700',
   conversion:      'bg-gray-100 text-gray-600',
+  opening_balance: 'bg-emerald-50 text-emerald-700',
 };
 
 function fmt(n: number) {

@@ -17,7 +17,7 @@ export type WalletTransaction = {
   currency:     "EGP" | "USD" | "RMB";
   amount:       string;
   direction:    "in" | "out";
-  reason:       "conversion" | "expense" | "order_payment" | "invoice_payment" | "customer_refund";
+  reason:       "conversion" | "expense" | "order_payment" | "invoice_payment" | "customer_refund" | "opening_balance";
   reference_id: string;
   corrects_id:  string | null;
   account_id:   string | null;
