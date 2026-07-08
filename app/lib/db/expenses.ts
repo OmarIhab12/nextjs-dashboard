@@ -142,14 +142,27 @@ export async function createExpense(input: CreateExpenseInput): Promise<Expense>
  *
  * RECURRENCE = 'once' AND AMOUNT CHANGED:
  *   Performs a wallet reversal immediately — the expense is a single event
- *   so editing the amount corrects the ledger right now.
+ *   so editing the amount corrects the ledger right now. The reversal credits
+ *   the OLD payment_method's wallet_accounts row and the correction debits the
+ *   NEW payment_method's row (same account if unchanged), keeping company_wallet
+ *   in sync with the sum of wallet_accounts rather than diverging from it.
  *   Ledger ends up with: original 'out' | reversal 'in' | correction 'out'
  *
  * RECURRENCE = 'monthly' AND AMOUNT CHANGED:
  *   Only updates the template row. The new amount takes effect on the next
  *   firing. Past wallet transactions are untouched.
  *
- * AMOUNT UNCHANGED:
+ * RECURRENCE = 'once' AND ONLY payment_method CHANGED (amount/currency same):
+ *   The expense already fired against the OLD account, so its balance has to
+ *   move to the NEW account now. Recorded as a wallet_transfers row (its
+ *   trigger debits the old account and credits the new one) rather than a
+ *   wallet_transactions pair, since the total is unaffected — money is only
+ *   moving between sub-accounts, not in or out of the company wallet.
+ *
+ * RECURRENCE = 'monthly' AND ONLY payment_method CHANGED:
+ *   Template hasn't fired yet, so there is nothing to move — metadata only.
+ *
+ * NOTHING FINANCIAL CHANGED:
  *   Updates metadata only (category, description, is_active, next_due_date).
  *   No wallet entries written regardless of recurrence.
  */
@@ -162,9 +175,54 @@ export async function updateExpense(
 
   const amountChanged = input.amount !== undefined && Math.abs(input.amount - Number(existing.amount)) > 0.001;
   const currencyChanged = input.currency !== undefined && input.currency !== existing.currency;
+  const paymentMethodChanged = input.payment_method !== undefined && input.payment_method !== existing.payment_method;
   const financialChange = amountChanged || currencyChanged;
 
-  // ── Case 1: non-financial fields only ────────────────────────
+  // ── Case 1a: once + only payment_method changed — move balance between accounts ──
+  if (!financialChange && paymentMethodChanged && existing.recurrence === 'once') {
+    const targetPaymentMethod = input.payment_method as PaymentMethod;
+
+    return await sql.begin(async (tx) => {
+      const amount = Number(existing.amount);
+      const currency = existing.currency;
+
+      const [fromAccount] = await tx<{ id: string }[]>`
+        SELECT id FROM wallet_accounts
+        WHERE currency = ${currency}::wallet_currency AND method = ${existing.payment_method}::payment_method
+        LIMIT 1
+      `;
+      const [toAccount] = await tx<{ id: string }[]>`
+        SELECT id FROM wallet_accounts
+        WHERE currency = ${currency}::wallet_currency AND method = ${targetPaymentMethod}::payment_method
+        LIMIT 1
+      `;
+
+      if (fromAccount && toAccount) {
+        await tx`
+          INSERT INTO wallet_transfers
+            (currency, amount, from_account_id, to_account_id, notes)
+          VALUES
+            (${currency}::wallet_currency, ${amount.toFixed(2)}::numeric,
+             ${fromAccount.id}, ${toAccount.id}, ${'Expense payment method change: ' + id})
+        `;
+      }
+
+      const [updated] = await tx<Expense[]>`
+        UPDATE expenses SET
+          payment_method = ${targetPaymentMethod}::payment_method,
+          category       = COALESCE(${input.category      ?? null}, category),
+          expense_type   = COALESCE(${input.expense_type  ?? null}::expense_type, expense_type),
+          description    = COALESCE(${input.description   ?? null}, description),
+          is_active      = COALESCE(${input.is_active     ?? null}, is_active),
+          edited_by      = ${input.edited_by}
+        WHERE id = ${id}
+        RETURNING *
+      `;
+      return updated;
+    });
+  }
+
+  // ── Case 1b: non-financial fields only (or monthly template payment_method change) ──
   if (!financialChange) {
     const [updated] = await sql<Expense[]>`
       UPDATE expenses SET
@@ -208,8 +266,10 @@ export async function updateExpense(
   }
 
   // ── Case 3: once + financial change — wallet reversal ────────
-  const oldAmount   = Number(existing.amount);
-  const oldCurrency = existing.currency;
+  const oldAmount        = Number(existing.amount);
+  const oldCurrency      = existing.currency;
+  const oldPaymentMethod = existing.payment_method;
+  const newPaymentMethod = input.payment_method ?? existing.payment_method;
 
   return await sql.begin(async (tx) => {
     // Find the original wallet_transaction for this expense
@@ -222,14 +282,25 @@ export async function updateExpense(
       LIMIT 1
     `;
 
-    // Write reversal: old amount comes back in (undoes old deduction)
+    // Write reversal: old amount comes back in (undoes old deduction) — against the OLD account
     const [reversalTx] = await tx<{ id: string }[]>`
       INSERT INTO wallet_transactions
-        (currency, amount, direction, reason, reference_id, corrects_id, created_by)
+        (currency, amount, direction, reason, reference_id, corrects_id, created_by, account_id)
       VALUES
         (${oldCurrency}::wallet_currency, ${oldAmount.toFixed(2)}::numeric,
-         'in', 'expense', ${id}, ${originalTx?.id ?? null}, ${input.edited_by})
+         'in', 'expense', ${id}, ${originalTx?.id ?? null}, ${input.edited_by},
+         (SELECT id FROM wallet_accounts
+          WHERE currency = ${oldCurrency}::wallet_currency AND method = ${oldPaymentMethod}::payment_method
+          LIMIT 1))
       RETURNING id
+    `;
+
+    // Credit the old account back (undo the original deduction)
+    await tx`
+      UPDATE wallet_accounts SET
+        balance    = balance + ${oldAmount.toFixed(2)}::numeric,
+        updated_at = NOW()
+      WHERE currency = ${oldCurrency}::wallet_currency AND method = ${oldPaymentMethod}::payment_method
     `;
 
     await tx`
@@ -240,13 +311,24 @@ export async function updateExpense(
         updated_at  = NOW()
     `;
 
-    // Write correction: new amount goes out (applies new values)
+    // Write correction: new amount goes out (applies new values) — against the NEW account
     await tx`
       INSERT INTO wallet_transactions
-        (currency, amount, direction, reason, reference_id, corrects_id, created_by)
+        (currency, amount, direction, reason, reference_id, corrects_id, created_by, account_id)
       VALUES
         (${newCurrency}::wallet_currency, ${newAmount.toFixed(2)}::numeric,
-         'out', 'expense', ${id}, ${reversalTx.id}, ${input.edited_by})
+         'out', 'expense', ${id}, ${reversalTx.id}, ${input.edited_by},
+         (SELECT id FROM wallet_accounts
+          WHERE currency = ${newCurrency}::wallet_currency AND method = ${newPaymentMethod}::payment_method
+          LIMIT 1))
+    `;
+
+    // Debit the new account (apply the corrected amount)
+    await tx`
+      UPDATE wallet_accounts SET
+        balance    = balance - ${newAmount.toFixed(2)}::numeric,
+        updated_at = NOW()
+      WHERE currency = ${newCurrency}::wallet_currency AND method = ${newPaymentMethod}::payment_method
     `;
 
     await tx`

@@ -12,7 +12,7 @@ import {
   updateExpenseAction,
   deactivateExpenseAction,
 } from '@/app/lib/actions/expenses';
-import type { Expense, ExpenseType } from '@/app/lib/db/expenses';
+import type { Expense, ExpenseType, PaymentMethod } from '@/app/lib/db/expenses';
 import {
   TableContainer, TableRows, TableActions, TableEmpty,
 } from '@/app/ui/table-components';
@@ -223,8 +223,13 @@ function ExpenseTable({
       fd.set('currency',       state.currency);
       fd.set('description',    state.description);
       const result = await createExpenseAction(fd);
-      if (result.error) { setError(row._key, result.error); return; }
-      setRows((prev) => prev.filter((r) => r._key !== row._key));
+      if (result.error || !result.expense) { setError(row._key, result.error ?? 'Failed to create expense.'); return; }
+      const created = result.expense;
+      setRows((prev) => prev.map((r) =>
+        r._key === row._key
+          ? { ...created, _key: created.id, mode: 'view' as RowMode }
+          : r
+      ));
       setEditStates((prev) => { const n = { ...prev }; delete n[row._key]; return n; });
       clearError(row._key);
     });
@@ -246,6 +251,7 @@ function ExpenseTable({
       setRows((prev) => prev.map((r) =>
         r._key === row._key
           ? { ...r, category: state.category, expense_type: state.expense_type,
+              payment_method: state.payment_method as PaymentMethod,
               amount: state.amount, currency: state.currency,
               description: state.description || null, mode: 'view' }
           : r

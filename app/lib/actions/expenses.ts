@@ -7,13 +7,15 @@ import {
   deactivateExpense,
   fireMonthlyExpense,
   getDueMonthlyExpenses,
+  type Expense,
 } from '@/app/lib/db/expenses';
 import { auth } from '@/auth';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type ExpenseFormState = {
-  error: string | null;
+  error:   string | null;
+  expense?: Expense;
 };
 
 // ── Create ────────────────────────────────────────────────────────────────────
@@ -40,7 +42,7 @@ export async function createExpenseAction(
     if (!['once', 'monthly'].includes(recurrence))  return { error: 'Invalid recurrence.' };
     if (!['EGP', 'USD', 'RMB'].includes(currency))  return { error: 'Invalid currency.' };
 
-    await createExpense({
+    const expense = await createExpense({
       category:       category.trim(),
       expense_type:   expense_type   as any,
       payment_method: payment_method as any,
@@ -52,7 +54,7 @@ export async function createExpenseAction(
     });
 
     revalidatePath('/dashboard/expenses');
-    return { error: null };
+    return { error: null, expense };
   } catch (err) {
     console.error('createExpenseAction:', err);
     return { error: 'Failed to create expense.' };
