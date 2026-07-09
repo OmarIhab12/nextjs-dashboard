@@ -186,24 +186,29 @@ export async function updateExpense(
       const amount = Number(existing.amount);
       const currency = existing.currency;
 
-      const [fromAccount] = await tx<{ id: string }[]>`
+      // oldAccount was debited when the expense originally fired — it gets refunded (credited).
+      // newAccount now owns the expense — it gets debited.
+      const [oldAccount] = await tx<{ id: string }[]>`
         SELECT id FROM wallet_accounts
         WHERE currency = ${currency}::wallet_currency AND method = ${existing.payment_method}::payment_method
         LIMIT 1
       `;
-      const [toAccount] = await tx<{ id: string }[]>`
+      const [newAccount] = await tx<{ id: string }[]>`
         SELECT id FROM wallet_accounts
         WHERE currency = ${currency}::wallet_currency AND method = ${targetPaymentMethod}::payment_method
         LIMIT 1
       `;
 
-      if (fromAccount && toAccount) {
+      if (oldAccount && newAccount) {
+        // wallet_transfers debits from_account_id and credits to_account_id, so the
+        // NEW account (being debited for the expense) is "from" and the OLD account
+        // (being refunded) is "to".
         await tx`
           INSERT INTO wallet_transfers
             (currency, amount, from_account_id, to_account_id, notes)
           VALUES
             (${currency}::wallet_currency, ${amount.toFixed(2)}::numeric,
-             ${fromAccount.id}, ${toAccount.id}, ${'Expense payment method change: ' + id})
+             ${newAccount.id}, ${oldAccount.id}, ${'Expense payment method change: ' + id})
         `;
       }
 
