@@ -4,7 +4,8 @@ export type PaymentMethod = "bank_transfer" | "cash" | "check" | "vodafone_cash"
 
 export interface Payment {
   id: string;
-  invoice_id: string;
+  invoice_id: string | null;
+  customer_id: string | null; // set instead of invoice_id when the payment has no invoice to apply to (pure credit)
   amount: string;
   payment_method: PaymentMethod;
   reference: string | null;

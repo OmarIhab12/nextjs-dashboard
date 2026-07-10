@@ -1,9 +1,12 @@
 import { notFound } from 'next/navigation';
 import { getCustomerPageData } from '@/app/lib/db/customers';
-import CustomerDetail   from '@/app/ui/customers/customer-details';
-import CustomerInvoices from '@/app/ui/customers/customer-invoices';
-import CustomerPayments from '@/app/ui/customers/customer-payments';
-import CustomerReturns  from '@/app/ui/customers/customer-returns';
+import { getWalletAccounts } from '@/app/lib/db/wallet-accounts';
+import CustomerDetail        from '@/app/ui/customers/customer-details';
+import CustomerInvoices      from '@/app/ui/customers/customer-invoices';
+import CustomerPayments      from '@/app/ui/customers/customer-payments';
+import CustomerReturns       from '@/app/ui/customers/customer-returns';
+import CustomerCreditRefunds from '@/app/ui/customers/customer-credit-refunds';
+import CreditBalanceBanner   from '@/app/ui/customers/credit-balance-banner';
 import { lusitana } from '@/app/ui/fonts';
 import { DownloadStatementButton } from '@/app/ui/button';
 
@@ -13,11 +16,15 @@ export default async function CustomerPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const data   = await getCustomerPageData(id);
+  const [data, allAccounts] = await Promise.all([
+    getCustomerPageData(id),
+    getWalletAccounts(),
+  ]);
 
   if (!data) notFound();
 
   const { customer, invoiceSummaries, paymentSummaries, totalOwed, totalPaid, totalCredits, totalCashRefunded } = data;
+  const egpAccounts = allAccounts.filter((a) => a.currency === 'EGP');
 
   return (
     <div className="w-full space-y-6">
@@ -35,19 +42,12 @@ export default async function CustomerPage({
       {/* Customer details — full width */}
       <CustomerDetail customer={customer} />
 
-      {/* Credit balance banner — only shown when customer has unallocated credit */}
-      
-        <div className="flex items-center justify-between rounded-md border border-yellow-300 bg-yellow-50 px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold text-yellow-800">Available Credit Balance</p>
-            <p className="text-xs text-yellow-600 mt-0.5">
-              This credit will automatically be applied to the customer&apos;s next invoice.
-            </p>
-          </div>
-          <span className="text-xl font-bold tabular-nums text-yellow-700">
-            E£{Number(customer.credit_balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
-        </div>
+      {/* Credit balance banner + refund control */}
+      <CreditBalanceBanner
+        customerId={customer.id}
+        creditBalance={Number(customer.credit_balance)}
+        egpAccounts={egpAccounts}
+      />
 
       {/* Invoices — full width */}
       <CustomerInvoices
@@ -67,6 +67,9 @@ export default async function CustomerPage({
         />
         <CustomerReturns customerId={customer.id} totalCredits={totalCredits} />
       </div>
+
+      {/* Credit refunds — full width */}
+      <CustomerCreditRefunds customerId={customer.id} />
     </div>
   );
 }

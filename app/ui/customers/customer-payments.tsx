@@ -28,7 +28,7 @@ export default function CustomerPayments({
       balanceAmount={totalOwed}
       currencySymbol="E£"
       payments={rows}
-      canAdd={totalOwed > 0}
+      canAdd={true}
       addButtonLabel="Add payment"
       formTitle="New Payment"
       onAdd={(fd) => addCustomerPaymentAction(customerId, fd)}

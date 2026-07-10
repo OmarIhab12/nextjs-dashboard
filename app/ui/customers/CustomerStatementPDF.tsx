@@ -51,7 +51,7 @@ function ar(text: string): string {
 export type StatementTransaction = {
   event_date: string;
   amount:     number;
-  event_type: 'invoice' | 'payment' | 'return_credit' | 'return_refund';
+  event_type: 'invoice' | 'payment' | 'return_credit' | 'return_refund' | 'credit_refund';
 };
 
 export type CustomerStatementData = {
@@ -69,17 +69,19 @@ function buildRows(transactions: StatementTransaction[]): Row[] {
   let balance = 0;
 
   for (const t of transactions) {
-    // return_refund offsets the obligation reduction (cash already given back)
+    // return_refund / credit_refund offset the obligation reduction (cash already given back)
     const delta =
-      t.event_type === 'invoice'       ?  t.amount :
-      t.event_type === 'return_refund' ?  t.amount :
-                                         -t.amount;
+      t.event_type === 'invoice'        ?  t.amount :
+      t.event_type === 'return_refund'  ?  t.amount :
+      t.event_type === 'credit_refund'  ?  t.amount :
+                                          -t.amount;
     balance += delta;
 
     const label =
-      t.event_type === 'invoice'       ? ar('فاتورة جديدة') :
-      t.event_type === 'return_credit' ? ar('مرتجع')        :
-      t.event_type === 'return_refund' ? ar('استرداد نقدي') :
+      t.event_type === 'invoice'       ? ar('فاتورة جديدة')     :
+      t.event_type === 'return_credit' ? ar('مرتجع')            :
+      t.event_type === 'return_refund' ? ar('استرداد نقدي')      :
+      t.event_type === 'credit_refund' ? ar('استرداد من الرصيد') :
                                          ar('دفعات');
 
     rows.push({
@@ -87,7 +89,7 @@ function buildRows(transactions: StatementTransaction[]): Row[] {
       date:     t.event_date,
       amount:   delta,
       label,
-      isRefund: t.event_type === 'return_refund',
+      isRefund: t.event_type === 'return_refund' || t.event_type === 'credit_refund',
     });
 
     rows.push({ kind: 'balance', balance, isFinal: false });

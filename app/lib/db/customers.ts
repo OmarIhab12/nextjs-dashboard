@@ -221,9 +221,10 @@ export async function getCustomerPageData(
     ARRAY_AGG(DISTINCT pi.installment_id) AS invoice_ids
   FROM payments p
   LEFT JOIN payment_installments pi ON pi.payment_id = p.id
-  WHERE p.invoice_id IN (
-    SELECT id FROM invoices WHERE customer_id = ${customerId}
-  )
+  WHERE p.customer_id = ${customerId}
+     OR p.invoice_id IN (
+       SELECT id FROM invoices WHERE customer_id = ${customerId}
+     )
   GROUP BY p.id, p.amount, p.paid_at, p.payment_method
   ORDER BY p.paid_at DESC
   `;
@@ -255,7 +256,7 @@ export async function getCustomerPageData(
 export type StatementTransaction = {
   event_date: string;   // DD/MM/YYYY
   amount:     number;   // positive = invoice, negative = payment (as stored)
-  event_type: 'invoice' | 'payment' | 'return_credit' | 'return_refund';
+  event_type: 'invoice' | 'payment' | 'return_credit' | 'return_refund' | 'credit_refund';
 };
 
 export async function getCustomerStatement(customerId: string): Promise<{
@@ -284,9 +285,10 @@ export async function getCustomerStatement(customerId: string): Promise<{
       'payment'                                    AS event_type,
       p.paid_at                                    AS sort_at
     FROM payments p
-    WHERE p.invoice_id IN (
-      SELECT id FROM invoices WHERE customer_id = ${customerId}
-    )
+    WHERE p.customer_id = ${customerId}
+       OR p.invoice_id IN (
+         SELECT id FROM invoices WHERE customer_id = ${customerId}
+       )
 
     UNION ALL
 
@@ -316,6 +318,18 @@ export async function getCustomerStatement(customerId: string): Promise<{
     WHERE i.customer_id = ${customerId}
       AND r.resolution_type = 'cash_refund'
 
+    UNION ALL
+
+    -- Credit balance refunds (cash paid out of the customer's credit_balance,
+    -- not tied to a return — each has its own row in credit_refunds)
+    SELECT
+      TO_CHAR(cr.created_at, 'DD/MM/YYYY') AS event_date,
+      cr.amount::text                      AS amount,
+      'credit_refund'                      AS event_type,
+      cr.created_at                        AS sort_at
+    FROM credit_refunds cr
+    WHERE cr.customer_id = ${customerId}
+
     ORDER BY sort_at ASC
   `;
 
@@ -324,7 +338,7 @@ export async function getCustomerStatement(customerId: string): Promise<{
     transactions: rows.map((r) => ({
       event_date: r.event_date,
       amount:     Number(r.amount),
-      event_type: r.event_type as 'invoice' | 'payment' | 'return_credit' | 'return_refund',
+      event_type: r.event_type as 'invoice' | 'payment' | 'return_credit' | 'return_refund' | 'credit_refund',
     })),
   };
 }
@@ -353,13 +367,16 @@ export async function addPaymentForCustomer(
       ORDER BY i.created_at ASC NULLS LAST, i.due_date ASC
     `;
  
-    if (installments.length === 0) return;
- 
-    // Insert payment record — use the first invoice_id as the anchor
+    // Anchor the payment to the oldest unpaid invoice when there is one; otherwise
+    // it's a pure credit-building payment, anchored to the customer directly so it
+    // still shows up in payment history / statements.
+    const anchorInvoiceId = installments[0]?.invoice_id ?? null;
+
     const [payment] = await tx`
-      INSERT INTO payments (invoice_id, amount, payment_method, reference, created_by)
+      INSERT INTO payments (invoice_id, customer_id, amount, payment_method, reference, created_by)
       VALUES (
-        ${installments[0].invoice_id},
+        ${anchorInvoiceId},
+        ${anchorInvoiceId ? null : customerId},
         ${amount},
         ${paymentMethod}::payment_method,
         ${reference ?? null},
@@ -367,22 +384,22 @@ export async function addPaymentForCustomer(
       )
       RETURNING *
     `;
- 
+
     // Distribute amount across installments oldest-first
     let remaining = amount;
- 
+
     for (const inst of installments) {
       if (remaining <= 0) break;
- 
+
       const allocated = Math.min(remaining, Number(inst.amount_remaining));
       remaining = Number((remaining - allocated).toFixed(2));
- 
+
       // Insert allocation
       await tx`
         INSERT INTO payment_installments (payment_id, installment_id, amount_allocated)
         VALUES (${payment.id}, ${inst.id}, ${allocated})
       `;
- 
+
       // Update installment — triggers handle stock, DB constraints handle integrity
       await tx`
         UPDATE installments
@@ -392,9 +409,93 @@ export async function addPaymentForCustomer(
         WHERE id = ${inst.id}
       `;
     }
+
+    // Anything left over after paying off every outstanding installment is excess —
+    // credit it to the customer's balance so it auto-applies to their next invoice.
+    if (remaining > 0) {
+      await tx`
+        UPDATE customers
+        SET credit_balance = credit_balance + ${remaining.toFixed(2)}
+        WHERE id = ${customerId}
+      `;
+    }
   });
 }
- 
+
+// ── Refund cash out of a customer's credit balance ────────────
+// Mirrors the cash-refund pattern in returns.ts: the wallet entries are
+// written manually here (not via a DB trigger) since the refundable amount
+// is caller-supplied and must be capped to the customer's actual balance.
+export async function refundCustomerCredit(
+  customerId: string,
+  amount:     number,
+  accountId:  string,
+  createdBy:  string,
+  notes?:     string,
+): Promise<void> {
+  await sql.begin(async (tx) => {
+    // Atomic guard: only succeeds if enough credit is actually available —
+    // avoids a race between two concurrent refunds on the same customer.
+    const [updated] = await tx<{ credit_balance: string }[]>`
+      UPDATE customers
+      SET credit_balance = credit_balance - ${amount.toFixed(2)}
+      WHERE id = ${customerId} AND credit_balance >= ${amount.toFixed(2)}
+      RETURNING credit_balance
+    `;
+    if (!updated) throw new Error('Refund amount exceeds available credit balance.');
+
+    // Durable record of this refund event — gives wallet_transactions a real,
+    // individually-traceable row to point at (mirrors how returns.ts anchors
+    // its cash refunds to a `returns` row) instead of the customer's own id.
+    const [creditRefund] = await tx<{ id: string }[]>`
+      INSERT INTO credit_refunds (customer_id, account_id, amount, notes, created_by)
+      VALUES (${customerId}, ${accountId}, ${amount.toFixed(2)}, ${notes ?? null}, ${createdBy})
+      RETURNING id
+    `;
+
+    await tx`
+      INSERT INTO wallet_transactions (currency, amount, direction, reason, reference_id, account_id, created_by)
+      VALUES ('EGP', ${amount.toFixed(2)}, 'out', 'customer_refund', ${creditRefund.id}, ${accountId}, ${createdBy})
+    `;
+
+    await tx`
+      UPDATE company_wallet
+      SET egp_balance = egp_balance - ${amount.toFixed(2)},
+          updated_at  = NOW()
+    `;
+
+    await tx`
+      UPDATE wallet_accounts
+      SET balance    = balance - ${amount.toFixed(2)},
+          updated_at = NOW()
+      WHERE id = ${accountId}
+    `;
+  });
+}
+
+export type CreditRefundRow = {
+  id:             string;
+  amount:         string;
+  notes:          string | null;
+  created_at:     Date;
+  account_method: string;
+};
+
+export async function getCreditRefundsByCustomer(customerId: string): Promise<CreditRefundRow[]> {
+  return sql<CreditRefundRow[]>`
+    SELECT
+      cr.id,
+      cr.amount,
+      cr.notes,
+      cr.created_at,
+      wa.method AS account_method
+    FROM credit_refunds cr
+    JOIN wallet_accounts wa ON wa.id = cr.account_id
+    WHERE cr.customer_id = ${customerId}
+    ORDER BY cr.created_at DESC
+  `;
+}
+
 
 
 
