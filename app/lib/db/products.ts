@@ -49,6 +49,15 @@ export async function getProductById(id: string): Promise<Product | null> {
   return product ?? null;
 }
 
+export async function getProductsByIds(ids: string[]): Promise<Product[]> {
+  if (ids.length === 0) return [];
+  return sql<Product[]>`
+    SELECT * FROM products
+    WHERE id = ANY(${ids})
+    ORDER BY name ASC
+  `;
+}
+
 export async function getProductBySku(sku: string): Promise<Product | null> {
   const [product] = await sql<Product[]>`
     SELECT * FROM products

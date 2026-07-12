@@ -3,7 +3,7 @@ import Breadcrumbs from '@/app/ui/invoices/breadcrumbs';
 import { getInvoiceById, getInvoiceInstallmentTotals } from '@/app/lib/db/invoices';
 import { getAllCustomers } from '@/app/lib/db/customers';
 import { notFound } from 'next/navigation';
-import { getActiveAvailableProducts } from '@/app/lib/db/products';
+import { getActiveAvailableProducts, getProductsByIds } from '@/app/lib/db/products';
 import { DownloadPDFButton } from '@/app/ui/button';
 import { unstable_noStore as noStore } from 'next/cache';
 import Link from 'next/link';
@@ -16,7 +16,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const id = params.id;
 
-  const [invoice, customers, products, installmentTotals] = await Promise.all([
+  const [invoice, customers, activeProducts, installmentTotals] = await Promise.all([
     getInvoiceById(id),
     getAllCustomers(),
     getActiveAvailableProducts(),
@@ -26,6 +26,16 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   noStore();
 
   if (!invoice) notFound();
+
+  // The invoice may reference products that are now inactive or out of stock —
+  // those still need to appear as options so existing line items render correctly.
+  const existingProductIds = invoice.items
+    .map((item) => item.product_id)
+    .filter((productId): productId is string => Boolean(productId));
+  const activeProductIds = new Set(activeProducts.map((p) => p.id));
+  const missingProductIds = existingProductIds.filter((productId) => !activeProductIds.has(productId));
+  const missingProducts = await getProductsByIds([...new Set(missingProductIds)]);
+  const products = [...activeProducts, ...missingProducts];
 
   const hasPayments = installmentTotals.totalPaid > 0;
 
