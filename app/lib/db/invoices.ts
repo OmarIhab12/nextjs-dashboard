@@ -444,9 +444,7 @@ export async function updateInvoiceItems(
 
   await Promise.all(
     edited.map(async (item) => {
-      const existing = existingMap.get(item.product_id)!;
-      const qtyDiff  = item.quantity - existing.quantity; // positive = more, negative = less
-
+      // Stock is adjusted by the trg_stock_on_item_update trigger — don't also adjust it here.
       await tx`
         UPDATE invoice_items
         SET
@@ -457,15 +455,6 @@ export async function updateInvoiceItems(
         WHERE invoice_id = ${invoiceId}
           AND product_id = ${item.product_id}
       `;
-
-      if (qtyDiff !== 0 && item.product_id) {
-        await tx`
-          UPDATE products
-          SET stock_quantity = stock_quantity - ${qtyDiff},
-              updated_at = NOW()
-          WHERE id = ${item.product_id}
-        `;
-      }
     })
   );
 
