@@ -120,7 +120,20 @@ export function DownloadPDFButton({ invoiceId, customerName, iconOnly = false }:
     setLoading(true);
     try {
       const res = await fetch(`/api/invoices/${invoiceId}/pdf`);
-      if (!res.ok) throw new Error('Failed to generate PDF');
+      if (!res.ok) {
+        let msg = `Server error ${res.status}`;
+        try {
+          const contentType = res.headers.get('content-type') ?? '';
+          if (contentType.includes('application/json')) {
+            const d = await res.json();
+            msg = d.error ?? msg;
+          } else {
+            const text = await res.text();
+            if (text) msg = text;
+          }
+        } catch {}
+        throw new Error(msg);
+      }
 
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
@@ -131,7 +144,8 @@ export function DownloadPDFButton({ invoiceId, customerName, iconOnly = false }:
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
-      alert('Failed to generate price list PDF');
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      alert(`Failed to generate invoice PDF: ${message}`);
     } finally {
       setLoading(false);
     }
