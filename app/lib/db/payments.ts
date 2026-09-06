@@ -259,14 +259,15 @@ export async function updatePayment(
     await tx`DELETE FROM payments WHERE id = ${id}`;
 
     if (originalTx) {
+      // (reference_id, direction, reason) already uniquely identifies the one
+      // reversal row the DELETE trigger above just wrote for this payment —
+      // Postgres UPDATE doesn't support ORDER BY/LIMIT anyway.
       await tx`
         UPDATE wallet_transactions
         SET corrects_id = ${originalTx.id}
         WHERE reference_id = ${id}
           AND direction    = 'out'
           AND reason       = 'invoice_payment'
-        ORDER BY created_at DESC
-        LIMIT 1
       `;
     }
 
@@ -300,14 +301,14 @@ export async function updatePayment(
       `;
 
       if (reversalTx) {
+        // (reference_id, direction, reason) already uniquely identifies the
+        // newly-inserted payment's 'in' row — no ORDER BY/LIMIT needed.
         await tx`
           UPDATE wallet_transactions
           SET corrects_id = ${reversalTx.id}
           WHERE reference_id = ${newPayment.id}
             AND direction    = 'in'
             AND reason       = 'invoice_payment'
-          ORDER BY created_at DESC
-          LIMIT 1
         `;
       }
     }
@@ -360,9 +361,41 @@ export async function updatePayment(
  * DB trigger fires on DELETE and automatically:
  *  - writes a wallet_transaction (EGP out — reversal)
  *  - decrements company_wallet.egp_balance
+ * A trigger has no access to the app's logged-in user, so it inserts that
+ * reversal row with a placeholder created_by (OLD.created_by — the original
+ * payment's creator). We immediately overwrite it with `deletedBy` (the user
+ * actually performing the delete) and link corrects_id back to the original
+ * 'in' entry (same pattern as updatePayment's amount-change path), so it
+ * shows as a chained correction attributed to the right person.
+ *
+ * Also reverses any leftover amount that addPaymentForCustomer() credited to
+ * customers.credit_balance at creation time (payment.amount minus what was
+ * actually allocated to installments). If that credit has since been spent
+ * (applied to a new invoice, or paid out via refundCustomerCredit), this
+ * throws instead of driving the balance negative — the caller must resolve
+ * that manually before the payment can be deleted.
  */
-export async function deletePayment(id: string): Promise<boolean> {
+export async function deletePayment(id: string, deletedBy: string): Promise<boolean> {
   return await sql.begin(async (tx) => {
+    // Fetch the payment itself — needed to find the customer for any
+    // unallocated "excess" credited to their balance, and to know the
+    // original amount vs. what was actually allocated.
+    const [payment] = await tx<Payment[]>`
+      SELECT * FROM payments WHERE id = ${id}
+    `;
+    if (!payment) return false;
+
+    // Find the original wallet 'in' entry for this payment so the reversal
+    // row the DELETE trigger is about to write can be chained to it.
+    const [originalTx] = await tx<{ id: string }[]>`
+      SELECT id FROM wallet_transactions
+      WHERE reference_id = ${id}
+        AND direction    = 'in'
+        AND reason       = 'invoice_payment'
+      ORDER BY created_at ASC
+      LIMIT 1
+    `;
+
     // Fetch allocations before deleting
     const allocations = await tx<PaymentInstallment[]>`
       SELECT * FROM payment_installments WHERE payment_id = ${id}
@@ -384,8 +417,58 @@ export async function deletePayment(id: string): Promise<boolean> {
       )
     );
 
-    // Delete payment (payment_installments cascade)
+    // Reverse any leftover credited to the customer's credit_balance.
+    const allocatedTotal = allocations.reduce(
+      (sum, a) => sum + Number(a.amount_allocated),
+      0
+    );
+    const creditedLeftover = Number(
+      (Number(payment.amount) - allocatedTotal).toFixed(2)
+    );
+
+    if (creditedLeftover > 0.001) {
+      let customerId = payment.customer_id;
+      if (!customerId && payment.invoice_id) {
+        const [invoice] = await tx<{ customer_id: string }[]>`
+          SELECT customer_id FROM invoices WHERE id = ${payment.invoice_id}
+        `;
+        customerId = invoice?.customer_id ?? null;
+      }
+
+      if (customerId) {
+        const [updated] = await tx<{ credit_balance: string }[]>`
+          UPDATE customers
+          SET credit_balance = credit_balance - ${creditedLeftover.toFixed(2)}
+          WHERE id = ${customerId} AND credit_balance >= ${creditedLeftover.toFixed(2)}
+          RETURNING credit_balance
+        `;
+        if (!updated) {
+          throw new Error(
+            `Cannot delete payment ${id}: its E£${creditedLeftover.toFixed(2)} credit balance ` +
+            `has already been spent by customer ${customerId}.`
+          );
+        }
+      }
+    }
+
+    // Delete payment (payment_installments cascade).
+    // DB trigger writes the reversal wallet_transaction ('out') as a side effect.
     const result = await tx`DELETE FROM payments WHERE id = ${id}`;
+
+    // Attribute the reversal to the user actually performing the delete, and
+    // chain it back to the original 'in' entry it undoes.
+    // (reference_id, direction, reason) already uniquely identifies the one
+    // reversal row the trigger above just wrote for this payment — no
+    // ORDER BY/LIMIT needed (and Postgres UPDATE doesn't support them anyway).
+    await tx`
+      UPDATE wallet_transactions
+      SET created_by  = ${deletedBy},
+          corrects_id = ${originalTx?.id ?? null}
+      WHERE reference_id = ${id}
+        AND direction    = 'out'
+        AND reason       = 'invoice_payment'
+    `;
+
     return result.count > 0;
   });
 }

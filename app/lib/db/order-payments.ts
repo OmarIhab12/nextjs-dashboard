@@ -232,7 +232,10 @@ export async function updateOrderPayment(
     // Step 3 — delete old payment (trigger: wallet USD in reversal + order.paid_usd reversed)
     await tx`DELETE FROM order_payments WHERE id = ${id}`;
 
-    // Link the auto-created reversal row to the original
+    // Link the auto-created reversal row to the original.
+    // (reference_id, direction, reason) already uniquely identifies the one
+    // reversal row the DELETE trigger above just wrote — Postgres UPDATE
+    // doesn't support ORDER BY/LIMIT anyway.
     if (originalTx) {
       await tx`
         UPDATE wallet_transactions
@@ -240,8 +243,6 @@ export async function updateOrderPayment(
         WHERE reference_id = ${id}
           AND direction    = 'in'
           AND reason       = 'order_payment'
-        ORDER BY created_at DESC
-        LIMIT 1
       `;
     }
 
@@ -271,14 +272,14 @@ export async function updateOrderPayment(
       `;
 
       if (reversalTx) {
+        // (reference_id, direction, reason) already uniquely identifies the
+        // newly-inserted payment's 'out' row — no ORDER BY/LIMIT needed.
         await tx`
           UPDATE wallet_transactions
           SET corrects_id = ${reversalTx.id}
           WHERE reference_id = ${newPayment.id}
             AND direction    = 'out'
             AND reason       = 'order_payment'
-          ORDER BY created_at DESC
-          LIMIT 1
         `;
       }
     }
@@ -329,11 +330,22 @@ export async function updateOrderPayment(
  * Deletes an order payment and reverses all instalment allocations.
  * DB trigger fires on DELETE and automatically reverses wallet + order.paid_usd.
  */
-export async function deleteOrderPayment(paymentId: string): Promise<void> {
+export async function deleteOrderPayment(paymentId: string, deletedBy: string): Promise<void> {
   const existing = await getOrderPaymentById(paymentId);
   if (!existing) throw new Error("Payment not found");
 
   await sql.begin(async (tx) => {
+    // Find the original wallet 'out' entry for this payment so the reversal
+    // row the DELETE trigger is about to write can be chained to it.
+    const [originalTx] = await tx<{ id: string }[]>`
+      SELECT id FROM wallet_transactions
+      WHERE reference_id = ${paymentId}
+        AND direction    = 'out'
+        AND reason       = 'order_payment'
+      ORDER BY created_at ASC
+      LIMIT 1
+    `;
+
     // Reverse instalment allocations
     await Promise.all(
       existing.allocations.map((alloc) =>
@@ -346,8 +358,21 @@ export async function deleteOrderPayment(paymentId: string): Promise<void> {
       )
     );
 
-    // Delete payment — DB trigger reverses wallet & order.paid_usd
+    // Delete payment — DB trigger reverses wallet (writes an 'in' reversal) & order.paid_usd
     await tx`DELETE FROM order_payments WHERE id = ${paymentId}`;
+
+    // Attribute the reversal to the user actually performing the delete, and
+    // chain it back to the original 'out' entry it undoes.
+    // (reference_id, direction, reason) already uniquely identifies the one
+    // reversal row just written — Postgres UPDATE doesn't support ORDER BY/LIMIT anyway.
+    await tx`
+      UPDATE wallet_transactions
+      SET created_by  = ${deletedBy},
+          corrects_id = ${originalTx?.id ?? null}
+      WHERE reference_id = ${paymentId}
+        AND direction    = 'in'
+        AND reason       = 'order_payment'
+    `;
 
     // await syncOrderInstalmentStatuses(existing.order_id);
   });
